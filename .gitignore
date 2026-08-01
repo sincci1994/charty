@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.claude/
+
+# 자체 git 저장소로 별도 관리 (github.com/ydh4481/charty-app)
+charty-app/
