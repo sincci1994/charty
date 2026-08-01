@@ -2,14 +2,33 @@
 
 :root {
   --grad: linear-gradient(135deg, #1fb6ff 0%, #3d5cff 55%, #9b2ff8 100%);
-  --bg: #000000;
-  --card: #1c1c1e;
-  --card2: #2c2c2e;
-  --accent: #007aff;
-  --green: #30d158;
-  --red: #ff453a;
-  --text: #f2f2f7;
-  --dim: #8e8e93;
+  --bg: #f5f5f7;
+  --card: #ffffff;
+  --card2: #e8e8ed;
+  --hairline: #e0e0e0;
+  --accent: #3d5cff;
+  --green: #2e7d32;
+  --red: #c62828;
+  --danger: #f44336;
+  --text: #1d1d1f;
+  --dim: #6e6e73;
+  --nav: rgba(245, 245, 247, 0.8);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --card: #2a2a2c;
+    --card2: #343436;
+    --hairline: #3e3e40;
+    --accent: #5ca8ff;
+    --green: #30d158;
+    --red: #ff453a;
+    --danger: #ff453a;
+    --text: #f5f5f7;
+    --dim: #b5b5ba;
+    --nav: rgba(30, 30, 30, 0.85);
+  }
 }
 
 html, body { height: 100%; }
@@ -17,7 +36,7 @@ html, body { height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -29,7 +48,7 @@ body {
   flex-direction: column;
 }
 
-.content { flex: 1; padding-bottom: 70px; }
+.content { flex: 1; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
 .page {
   padding: 16px;
@@ -48,8 +67,9 @@ h2 { font-size: 22px; }
 
 .card {
   background: var(--card);
-  border-radius: 12px;
-  padding: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -57,32 +77,41 @@ h2 { font-size: 22px; }
 
 .big-number { font-size: 28px; font-weight: 700; }
 
-/* 하단 탭바 */
+/* 하단 탭바 — 플로팅 알약형 (Home v3) */
 .tabbar {
   position: fixed;
-  bottom: 0;
+  bottom: calc(20px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
-  width: 100%;
-  max-width: 480px;
+  width: calc(100% - 32px);
+  max-width: 448px;
   display: flex;
-  background: var(--card);
-  border-top: 1px solid var(--card2);
-  padding-bottom: env(safe-area-inset-bottom);
+  gap: 4px;
+  padding: 6px;
+  background: var(--nav);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 .tabbar a {
   flex: 1;
+  height: 50px;
+  border-radius: 999px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 8px 0 10px;
-  font-size: 11px;
+  font-size: 10px;
+  letter-spacing: -0.12px;
   color: var(--dim);
   text-decoration: none;
+  transition: background 0.25s, transform 0.15s;
 }
-.tabbar a.active { color: var(--accent); }
-.tabbar .icon { font-size: 20px; }
+.tabbar a:active { transform: scale(0.95); }
+.tabbar a.active { color: #fff; background: var(--grad); font-weight: 600; }
 
 /* 버튼 */
 button {
@@ -166,7 +195,7 @@ input, textarea {
 .down { color: var(--red); }
 
 .pill {
-  height: 46px;
+  height: 48px;
   border-radius: 999px;
   border: none;
   font-size: 15px;
@@ -180,10 +209,11 @@ input, textarea {
   padding: 0 18px;
 }
 .pill:active { transform: scale(0.95); }
-.pill-primary { background: var(--grad); color: #fff; flex: 1; }
-.pill-secondary { border: 1px solid var(--card2); color: var(--dim); font-size: 14px; }
-.pill-danger { background: var(--red); color: #fff; font-weight: 600; }
-.pill-full { width: 100%; height: 48px; font-size: 16px; }
+/* flex:1 금지 — 세로 flex(.page/.card) 직속 자식이면 height가 flex-basis에 밀려 무시됨 */
+.pill-primary { background: var(--grad); color: #fff; }
+.pill-secondary { border: 1px solid var(--hairline); color: var(--dim); font-size: 14px; }
+.pill-danger { background: var(--danger); color: #fff; font-weight: 600; }
+.pill-full { width: 100%; font-size: 16px; }
 
 .stats {
   display: grid;
@@ -192,6 +222,7 @@ input, textarea {
 }
 .stat {
   background: var(--card);
+  border: 1px solid var(--hairline);
   border-radius: 14px;
   padding: 12px 6px;
   text-align: center;
@@ -208,9 +239,9 @@ input, textarea {
   margin-top: 3px;
   display: block;
 }
-.stat.tint-up { background: rgba(48, 209, 88, 0.16); }
+.stat.tint-up { background: rgba(48, 209, 88, 0.16); border-color: rgba(48, 209, 88, 0.3); }
 .stat.tint-up b, .stat.tint-up span { color: var(--green); }
-.stat.tint-down { background: rgba(255, 69, 58, 0.16); }
+.stat.tint-down { background: rgba(255, 69, 58, 0.16); border-color: rgba(255, 69, 58, 0.3); }
 .stat.tint-down b, .stat.tint-down span { color: var(--red); }
 
 .chip {
@@ -244,6 +275,7 @@ input, textarea {
 }
 .quick {
   background: var(--card);
+  border: 1px solid var(--hairline);
   border-radius: 16px;
   padding: 14px;
   display: flex;

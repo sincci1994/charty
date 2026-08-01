@@ -4,6 +4,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom'
 import App from './App'
 import Home from './pages/Home'
 import Practice from './pages/Practice'
+import PracticeStyle from './pages/PracticeStyle'
 import Simulation from './pages/Simulation'
 import Review from './pages/Review'
 import History from './pages/History'
@@ -18,6 +19,7 @@ createRoot(document.getElementById('root')!).render(
         <Route element={<App />}>
           <Route path="/" element={<Home />} />
           <Route path="/practice" element={<Practice />} />
+          <Route path="/practice/style" element={<PracticeStyle />} />
           <Route path="/sim" element={<Simulation />} />
           <Route path="/review" element={<Review />} />
           <Route path="/history" element={<History />} />

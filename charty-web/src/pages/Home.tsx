@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AssetChart from '../components/AssetChart'
-import { currentEquity, useStore } from '../store'
+import { currentEquity, simProgress, useStore } from '../store'
 import type { SimRecord } from '../types'
 
 const START_BALANCE = 1_000_000
@@ -36,7 +36,7 @@ function assetSeries(records: SimRecord[], period: (typeof PERIODS)[number]['key
 
 export default function Home() {
   const nav = useNavigate()
-  const { balance, records, activeSim, candles, resume } = useStore()
+  const { balance, records, activeSim, candles, resume, endNow } = useStore()
   const [hideAsset, setHideAsset] = useState(false)
   const [period, setPeriod] = useState<(typeof PERIODS)[number]['key']>('1m')
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -58,9 +58,7 @@ export default function Home() {
   const tradeCount = records.reduce((s, r) => s + r.tradeCount, 0)
   const streakDays = streak(records)
   const profitTint = profitRate === null || profitRate === 0 ? '' : profitRate > 0 ? 'tint-up' : 'tint-down'
-  const progress = activeSim
-    ? Math.round(((activeSim.cursor - activeSim.startIndex) / (activeSim.endIndex - activeSim.startIndex)) * 100)
-    : 0
+  const progress = activeSim ? simProgress(activeSim) : 0
   const periodLabel = PERIODS.find((p) => p.key === period)!.label
 
   return (
@@ -107,15 +105,15 @@ export default function Home() {
             <div style={{ width: `${progress}%` }} />
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
-            <button className="pill pill-primary" onClick={() => nav('/sim')}>연습 계속하기</button>
-            <button className="pill pill-secondary" onClick={() => dialogRef.current?.showModal()}>새로 시작</button>
+            <button className="pill pill-primary" style={{ flex: 1 }} onClick={() => nav('/sim')}>연습 계속하기</button>
+            <button className="pill pill-secondary" onClick={() => dialogRef.current?.showModal()}>그만두기</button>
           </div>
         </section>
       ) : (
         <button className="pill pill-primary pill-full" onClick={() => nav('/practice')}>연습하러 가기</button>
       )}
 
-      <h2 style={{ margin: '10px 0 0' }}>성과 요약</h2>
+      <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>성과 요약</h2>
       <div className="stats">
         <div className={`stat ${profitTint}`}>
           <b>{profitRate === null ? '-' : `${sign(profitRate)}${Math.abs(profitRate).toFixed(1)}%`}</b>
@@ -131,7 +129,7 @@ export default function Home() {
         </div>
       </div>
 
-      <section className="card" style={{ padding: '14px 14px 10px' }}>
+      <section className="card" style={{ padding: '18px 16px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.2px' }}>자산 추이</div>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -160,7 +158,7 @@ export default function Home() {
             <path d="M9 6 L15 12 L9 18" />
           </svg>
         </button>
-        <button className="quick" onClick={() => nav('/practice')}>
+        <button className="quick" onClick={() => nav('/practice/style')}>
           <div className="icon" style={{ background: 'linear-gradient(135deg, #3D5CFF, #9B2FF8)' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 20 V12 M12 20 V4 M18 20 V9" />
@@ -177,12 +175,11 @@ export default function Home() {
       </div>
 
       <dialog ref={dialogRef}>
-        <h3>새로 시작할까요?</h3>
-        <p>새 연습을 시작하면 진행 중인<br />시뮬레이션이 교체됩니다.</p>
+        <h3>연습을 종료할까요?</h3>
+        <p>남은 포지션은 종가로 청산되고<br />회고를 작성합니다.</p>
         <div className="actions">
           <button className="pill pill-secondary" onClick={() => dialogRef.current?.close()}>취소</button>
-          {/* ponytail: 새 시뮬 시작 시 activeSim이 어차피 교체되므로 별도 삭제 액션 없음 */}
-          <button className="pill pill-danger" onClick={() => { dialogRef.current?.close(); nav('/practice') }}>새로 시작</button>
+          <button className="pill pill-danger" onClick={() => { dialogRef.current?.close(); endNow(); nav('/sim') }}>종료하기</button>
         </div>
       </dialog>
     </div>

@@ -130,3 +130,8 @@ export function currentEquity(sim: ActiveSim, candles: Candle[]): number {
   const price = candles[sim.cursor]?.c ?? 0
   return equity(sim, price)
 }
+
+// 시뮬레이션 진행률 % (0~100)
+export function simProgress(sim: ActiveSim): number {
+  return Math.round(((sim.cursor - sim.startIndex) / (sim.endIndex - sim.startIndex)) * 100)
+}
