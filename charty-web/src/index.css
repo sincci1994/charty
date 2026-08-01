@@ -1,6 +1,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
+  --grad: linear-gradient(135deg, #1fb6ff 0%, #3d5cff 55%, #9b2ff8 100%);
   --bg: #000000;
   --card: #1c1c1e;
   --card2: #2c2c2e;
@@ -158,9 +159,153 @@ input, textarea {
 
 .empty { color: var(--dim); text-align: center; padding: 24px 0; line-height: 1.6; }
 
-/* 홈 */
-.stat-row { display: flex; gap: 8px; }
-.stat { flex: 1; padding: 10px 6px; }
+/* 홈 (맥 charty-app/web에서 이식) */
+.sub { color: var(--dim); }
+.num { font-variant-numeric: tabular-nums; }
+.up { color: var(--green); }
+.down { color: var(--red); }
+
+.pill {
+  height: 46px;
+  border-radius: 999px;
+  border: none;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s;
+  background: transparent;
+  color: var(--text);
+  padding: 0 18px;
+}
+.pill:active { transform: scale(0.95); }
+.pill-primary { background: var(--grad); color: #fff; flex: 1; }
+.pill-secondary { border: 1px solid var(--card2); color: var(--dim); font-size: 14px; }
+.pill-danger { background: var(--red); color: #fff; font-weight: 600; }
+.pill-full { width: 100%; height: 48px; font-size: 16px; }
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+.stat {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 12px 6px;
+  text-align: center;
+}
+.stat b {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  display: block;
+}
+.stat span {
+  font-size: 12px;
+  color: var(--dim);
+  margin-top: 3px;
+  display: block;
+}
+.stat.tint-up { background: rgba(48, 209, 88, 0.16); }
+.stat.tint-up b, .stat.tint-up span { color: var(--green); }
+.stat.tint-down { background: rgba(255, 69, 58, 0.16); }
+.stat.tint-down b, .stat.tint-down span { color: var(--red); }
+
+.chip {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--dim);
+  background: transparent;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.chip.active { font-weight: 600; color: #fff; background: var(--accent); }
+
+.track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--card2);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.track > div {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--grad);
+  transition: width 0.4s;
+}
+
+.quick-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.quick {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: transform 0.15s;
+  text-align: left;
+}
+.quick:active { transform: scale(0.96); }
+.quick .icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.quick b {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  display: block;
+}
+.quick span {
+  font-size: 11px;
+  color: var(--dim);
+  display: block;
+  margin-top: 1px;
+}
+
+dialog {
+  margin: auto; /* 전역 * { margin: 0 } 리셋이 지운 기본 센터링 복원 */
+  border: none;
+  border-radius: 18px;
+  padding: 26px 22px;
+  width: calc(100% - 64px);
+  max-width: 340px;
+  background: var(--card);
+  color: var(--text);
+}
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+dialog h3 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.374px;
+  text-align: center;
+  margin: 0;
+}
+dialog p {
+  font-size: 14px;
+  color: var(--dim);
+  text-align: center;
+  margin: 8px 0 0;
+  line-height: 1.47;
+}
+dialog .actions { display: flex; gap: 12px; margin-top: 22px; }
+dialog .actions .pill { flex: 1; height: 44px; }
+dialog .actions .pill-secondary { color: var(--text); font-size: 15px; }
 
 /* 회고 */
 .emotion-grid { display: flex; flex-wrap: wrap; gap: 6px; }

@@ -1,49 +1,190 @@
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { STYLES } from '../lib/data'
-import { useStore } from '../store'
+import AssetChart from '../components/AssetChart'
+import { currentEquity, useStore } from '../store'
+import type { SimRecord } from '../types'
+
+const START_BALANCE = 1_000_000
+
+const PERIODS = [
+  { key: '1w', label: '1주' },
+  { key: '1m', label: '1달' },
+  { key: 'all', label: '전체' },
+] as const
+
+const won = (n: number) => '₩' + n.toLocaleString('ko-KR')
+const sign = (n: number) => (n > 0 ? '+' : n < 0 ? '-' : '')
+
+const EYE_OPEN = 'M3 12 C3 12 6 6 12 6 C18 6 21 12 21 12 C21 12 18 18 12 18 C6 18 3 12 3 12 Z M12 9 A3 3 0 1 0 12 15 A3 3 0 1 0 12 9'
+const EYE_OFF = 'M3 3 L21 21 M10.5 10.6 A3 3 0 0 0 13.4 13.5 M7 7 C4.5 8.5 3 12 3 12 C3 12 6 18 12 18 C13.8 18 15.4 17.4 16.7 16.6 M12 6 C18 6 21 12 21 12 C21 12 20.4 13.2 19.3 14.5'
+
+// 오늘부터 거꾸로 연속 연습일 수
+function streak(records: SimRecord[]): number {
+  const days = new Set(records.map((r) => new Date(r.endedAt).toDateString()))
+  let n = 0
+  for (const d = new Date(); days.has(d.toDateString()); d.setDate(d.getDate() - 1)) n++
+  return n
+}
+
+// 기간 내 연습 종료 시점의 잔고 시계열 + 현재 자산
+function assetSeries(records: SimRecord[], period: (typeof PERIODS)[number]['key'], current: number): number[] {
+  const asc = [...records].sort((a, b) => a.endedAt - b.endedAt)
+  const cutoff = period === 'all' ? 0 : Date.now() - (period === '1w' ? 7 : 30) * 86_400_000
+  const base = asc.filter((r) => r.endedAt < cutoff).at(-1)?.endBalance ?? START_BALANCE
+  return [base, ...asc.filter((r) => r.endedAt >= cutoff).map((r) => r.endBalance), current]
+}
 
 export default function Home() {
   const nav = useNavigate()
-  const { balance, records, activeSim } = useStore()
+  const { balance, records, activeSim, candles, resume } = useStore()
+  const [hideAsset, setHideAsset] = useState(false)
+  const [period, setPeriod] = useState<(typeof PERIODS)[number]['key']>('1m')
+  const dialogRef = useRef<HTMLDialogElement>(null)
 
-  const wins = records.filter((r) => r.pnlPct > 0).length
-  const winRate = records.length ? (wins / records.length) * 100 : null
-  const avgPnl = records.length ? records.reduce((s, r) => s + r.pnlPct, 0) / records.length : null
+  // 진행중 시뮬이 있으면 캔들을 다시 로드해 현재 평가액 계산
+  useEffect(() => {
+    resume()
+  }, [resume])
+
+  const totalAsset = Math.round(activeSim && candles.length ? currentEquity(activeSim, candles) : balance)
+  const delta = totalAsset - START_BALANCE
+  const deltaRate = (delta / START_BALANCE) * 100
+  const up = delta > 0
+  const down = delta < 0
+  const newUser = records.length === 0 && !activeSim
+
+  const winRate = records.length ? Math.round((records.filter((r) => r.pnlPct > 0).length / records.length) * 100) : null
+  const profitRate = records.length ? records.reduce((s, r) => s + r.pnlPct, 0) / records.length : null
+  const tradeCount = records.reduce((s, r) => s + r.tradeCount, 0)
+  const streakDays = streak(records)
+  const profitTint = profitRate === null || profitRate === 0 ? '' : profitRate > 0 ? 'tint-up' : 'tint-down'
+  const progress = activeSim
+    ? Math.round(((activeSim.cursor - activeSim.startIndex) / (activeSim.endIndex - activeSim.startIndex)) * 100)
+    : 0
+  const periodLabel = PERIODS.find((p) => p.key === period)!.label
 
   return (
     <div className="page">
-      <h2>차티 📈</h2>
-      <p className="dim">과거 차트로 훈련하는 모의투자</p>
+      <header style={{ padding: '4px 0 8px' }}>
+        <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.374px' }}>안녕하세요! 👋</div>
+        <div className="sub" style={{ fontSize: 15, marginTop: 6 }}>
+          {streakDays > 0 ? `${streakDays}일 연속 연습 중! 대단해요!` : '오늘 첫 연습을 시작해보세요!'}
+        </div>
+      </header>
 
-      <div className="card center">
-        <div className="dim small">내 자산</div>
-        <div className="big-number">{balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-      </div>
-
-      <div className="stat-row">
-        <div className="card center stat">
-          <div className="dim small">연습 횟수</div>
-          <b>{records.length}회</b>
+      <section className="card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="sub" style={{ fontSize: 13 }}>총 자산</span>
+          <button
+            onClick={() => setHideAsset((v) => !v)}
+            aria-label={hideAsset ? '자산 보이기' : '자산 숨기기'}
+            style={{ all: 'unset', cursor: 'pointer', display: 'flex', color: 'var(--dim)' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d={hideAsset ? EYE_OFF : EYE_OPEN} />
+            </svg>
+          </button>
         </div>
-        <div className="card center stat">
-          <div className="dim small">승률</div>
-          <b>{winRate === null ? '-' : `${winRate.toFixed(0)}%`}</b>
+        <div className="num" style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.374px' }}>
+          {hideAsset ? '₩ ******' : won(totalAsset)}
         </div>
-        <div className="card center stat">
-          <div className="dim small">평균 수익률</div>
-          <b className={avgPnl !== null && avgPnl < 0 ? 'red' : 'green'}>
-            {avgPnl === null ? '-' : `${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%`}
-          </b>
-        </div>
-      </div>
+        {!hideAsset && (
+          <div className={`num ${up ? 'up' : down ? 'down' : 'sub'}`} style={{ fontSize: 14, fontWeight: 500 }}>
+            {newUser
+              ? `시작 자산 ${won(START_BALANCE)}`
+              : `${sign(delta)}${won(Math.abs(delta))} (${sign(deltaRate)}${Math.abs(deltaRate).toFixed(1)}%)`}
+          </div>
+        )}
+      </section>
 
       {activeSim ? (
-        <button className="primary-btn big" onClick={() => nav('/sim')}>
-          진행중인 연습 이어하기 ▶ <span className="small">({activeSim.symbol} · {STYLES[activeSim.style].label})</span>
-        </button>
+        <section className="card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.2px' }}>현재 연습 진행 중</div>
+            <div className="num" style={{ fontSize: 14, fontWeight: 600 }}>{progress}%</div>
+          </div>
+          <div className="track">
+            <div style={{ width: `${progress}%` }} />
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+            <button className="pill pill-primary" onClick={() => nav('/sim')}>연습 계속하기</button>
+            <button className="pill pill-secondary" onClick={() => dialogRef.current?.showModal()}>새로 시작</button>
+          </div>
+        </section>
       ) : (
-        <button className="primary-btn big" onClick={() => nav('/practice')}>새 연습 시작하기</button>
+        <button className="pill pill-primary pill-full" onClick={() => nav('/practice')}>연습하러 가기</button>
       )}
+
+      <h2 style={{ margin: '10px 0 0' }}>성과 요약</h2>
+      <div className="stats">
+        <div className={`stat ${profitTint}`}>
+          <b>{profitRate === null ? '-' : `${sign(profitRate)}${Math.abs(profitRate).toFixed(1)}%`}</b>
+          <span>평균 수익률</span>
+        </div>
+        <div className="stat">
+          <b>{winRate === null ? '-' : `${winRate}%`}</b>
+          <span>승률</span>
+        </div>
+        <div className="stat">
+          <b>{tradeCount}건</b>
+          <span>총 거래 수</span>
+        </div>
+      </div>
+
+      <section className="card" style={{ padding: '14px 14px 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.2px' }}>자산 추이</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {PERIODS.map((p) => (
+              <button key={p.key} className={`chip ${p.key === period ? 'active' : ''}`} onClick={() => setPeriod(p.key)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <AssetChart values={assetSeries(records, period, totalAsset)} startLabel={`${periodLabel} 전`} />
+      </section>
+
+      <div className="quick-links">
+        <button className="quick" onClick={() => nav('/history')}>
+          <div className="icon" style={{ background: 'linear-gradient(135deg, #1FB6FF, #3D5CFF)' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 7 H21 V19 H3 Z M3 11 H21 M7 15 H10" />
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <b>연습 기록</b>
+            <span>지난 결과 보기</span>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 6 L15 12 L9 18" />
+          </svg>
+        </button>
+        <button className="quick" onClick={() => nav('/practice')}>
+          <div className="icon" style={{ background: 'linear-gradient(135deg, #3D5CFF, #9B2FF8)' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 20 V12 M12 20 V4 M18 20 V9" />
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <b>새 연습</b>
+            <span>스타일 고르기</span>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 6 L15 12 L9 18" />
+          </svg>
+        </button>
+      </div>
+
+      <dialog ref={dialogRef}>
+        <h3>새로 시작할까요?</h3>
+        <p>새 연습을 시작하면 진행 중인<br />시뮬레이션이 교체됩니다.</p>
+        <div className="actions">
+          <button className="pill pill-secondary" onClick={() => dialogRef.current?.close()}>취소</button>
+          {/* ponytail: 새 시뮬 시작 시 activeSim이 어차피 교체되므로 별도 삭제 액션 없음 */}
+          <button className="pill pill-danger" onClick={() => { dialogRef.current?.close(); nav('/practice') }}>새로 시작</button>
+        </div>
+      </dialog>
     </div>
   )
 }
