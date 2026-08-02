@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Chart, { type IndicatorShow } from '../components/Chart'
+import Chart, { type IndicatorShow, type PriceLineSpec } from '../components/Chart'
 import OrderSheet from '../components/OrderSheet'
 import { currentEquity, useStore } from '../store'
 import { LOOKBACK, STYLES, bollinger, ema, fmtW, rsi } from '../lib/data'
@@ -27,6 +27,31 @@ export default function Simulation() {
     if (!sim) nav('/practice', { replace: true })
     else resume()
   }, [sim, nav, resume])
+
+  // 포지션/미체결이 생기면 상태 카드를 자동으로 펼침 (수동 접기는 유지)
+  const hasItems = !!sim && (!!sim.positions.LONG || !!sim.positions.SHORT || sim.openOrders.length > 0)
+  const [foldOpen, setFoldOpen] = useState(() => hasItems || !!sim?.done)
+  useEffect(() => {
+    if (hasItems || sim?.done) setFoldOpen(true)
+  }, [hasItems, sim?.done])
+
+  // 체결 토스트 — trades가 늘어나면 새 체결로 간주. 사라짐은 CSS 애니메이션(toastLife)에 맡김
+  const [toast, setToast] = useState<{ id: number; msg: string } | null>(null)
+  const prevTrades = useRef(sim?.trades.length ?? 0)
+  useEffect(() => {
+    if (!sim) return
+    const n = sim.trades.length
+    if (n > prevTrades.current) {
+      const fresh = sim.trades.slice(prevTrades.current)
+      const t = fresh[fresh.length - 1]
+      const msg =
+        fresh.length > 1
+          ? `주문 ${fresh.length}건 체결`
+          : `${t.side.includes('LONG') ? 'Long' : 'Short'} ${t.side.startsWith('OPEN') ? '진입' : '청산'} ${t.qty}주 @ ${fmtW(t.price)} 체결`
+      setToast({ id: Date.now(), msg })
+    }
+    prevTrades.current = n
+  }, [sim])
 
   const indicators = useMemo(() => {
     const closes = candles.map((c) => c.c)
@@ -69,6 +94,16 @@ export default function Simulation() {
   const posCount = (sim.positions.LONG ? 1 : 0) + (sim.positions.SHORT ? 1 : 0)
   const styleLabel = STYLES[sim.style as Style]?.label ?? sim.styleLabel
 
+  const lines: PriceLineSpec[] = []
+  for (const k of ['LONG', 'SHORT'] as const) {
+    const p = sim.positions[k]
+    if (!p) continue
+    const pct = ((k === 'LONG' ? price - p.avgPrice : p.avgPrice - price) / p.avgPrice) * 100
+    lines.push({ price: p.avgPrice, up: k === 'LONG', title: `${k} ${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%` })
+  }
+  for (const o of sim.openOrders)
+    lines.push({ price: o.price, up: o.side.includes('LONG'), title: `${o.side.startsWith('OPEN') ? '진입' : '청산'} ${o.qty}주` })
+
   return (
     <div className="page" style={{ paddingBottom: sim.done ? 16 : 130 }}>
       <div className="sim-topbar">
@@ -108,7 +143,7 @@ export default function Simulation() {
         </div>
       </div>
 
-      <Chart candles={visible.candles} emas={visible.emas} bands={visible.bands} rsi={visible.rsi} show={show} />
+      <Chart candles={visible.candles} emas={visible.emas} bands={visible.bands} rsi={visible.rsi} show={show} lines={lines} />
 
       <div className="ind-row">
         <div className="ind-chips">
@@ -134,7 +169,7 @@ export default function Simulation() {
         )}
       </div>
 
-      <details className="card fold" open={sim.done}>
+      <details className="card fold" open={foldOpen} onToggle={(e) => setFoldOpen(e.currentTarget.open)}>
         <summary>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             <span className="dim small">포지션 <b style={{ color: 'var(--text)' }}>{posCount}</b></span>
@@ -215,6 +250,17 @@ export default function Simulation() {
             onClose={() => setSheetDir(null)}
           />
         </>
+      )}
+
+      {toast && (
+        <div className="toast-wrap" key={toast.id}>
+          <div className="toast">
+            <span className="toast-check">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 L10 17.5 L19 7" /></svg>
+            </span>
+            {toast.msg}
+          </div>
+        </div>
       )}
 
       <dialog ref={endDialogRef}>

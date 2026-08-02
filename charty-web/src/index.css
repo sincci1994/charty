@@ -14,6 +14,7 @@
   --dim: #6e6e73;
   --nav: rgba(245, 245, 247, 0.8);
   --accent-soft: rgba(61, 92, 255, 0.06);
+  --toast-bg: rgba(29, 29, 31, 0.88);
 }
 
 /* 다크 값: 시스템 다크(수동 라이트 미지정 시) + 수동 다크 — 두 셀렉터에 동일 적용 */
@@ -31,6 +32,7 @@
     --dim: #b5b5ba;
     --nav: rgba(30, 30, 30, 0.85);
     --accent-soft: rgba(92, 168, 255, 0.1);
+    --toast-bg: rgba(58, 58, 62, 0.92);
   }
 }
 :root[data-theme='dark'] {
@@ -46,6 +48,7 @@
   --dim: #b5b5ba;
   --nav: rgba(30, 30, 30, 0.85);
   --accent-soft: rgba(92, 168, 255, 0.1);
+  --toast-bg: rgba(58, 58, 62, 0.92);
 }
 
 html, body { height: 100%; }
@@ -331,6 +334,49 @@ dialog.sheet {
   padding: 10px 20px 30px;
   animation: sheetUp 0.25s ease-out;
 }
+/* 체결 토스트 — 목업 toastLife: 페이드인 → 홀드 → 페이드아웃, 이후 opacity 0 유지 */
+.toast-wrap {
+  position: fixed;
+  top: 58px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 60;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--toast-bg);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 999px;
+  padding: 9px 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  animation: toastLife 2.3s ease both;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(8px);
+}
+.toast-check {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+@keyframes toastLife {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.96); }
+  8% { opacity: 1; transform: translateY(0) scale(1); }
+  86% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-6px) scale(0.98); }
+}
+
 @keyframes sheetUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }

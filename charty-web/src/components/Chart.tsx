@@ -4,8 +4,10 @@ import {
   ColorType,
   HistogramSeries,
   LineSeries,
+  LineStyle,
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts'
@@ -18,12 +20,19 @@ export interface IndicatorShow {
   vol: boolean
 }
 
+export interface PriceLineSpec {
+  price: number
+  up: boolean // true → --green, false → --red
+  title: string // 라인 옆 텍스트 (포지션: PnL%, 주문: 수량)
+}
+
 interface Props {
   candles: Candle[]
   emas: { e13: (number | null)[]; e25: (number | null)[]; e200: (number | null)[] } // candles와 같은 인덱스
   bands: { upper: (number | null)[]; lower: (number | null)[] }
   rsi: (number | null)[]
   show: IndicatorShow
+  lines: PriceLineSpec[]
 }
 
 const EMA_COLORS = { e13: '#f5a623', e25: '#3d5cff', e200: '#9b2ff8' } as const
@@ -41,10 +50,11 @@ interface SeriesMap {
   rsi?: ISeriesApi<'Line'>
 }
 
-export default function Chart({ candles, emas, bands, rsi, show }: Props) {
+export default function Chart({ candles, emas, bands, rsi, show, lines }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<SeriesMap | null>(null)
+  const plRef = useRef<IPriceLine[]>([])
   const dataRef = useRef({ candles, emas, bands, rsi })
   dataRef.current = { candles, emas, bands, rsi }
 
@@ -59,6 +69,7 @@ export default function Chart({ candles, emas, bands, rsi, show }: Props) {
         background: { type: ColorType.Solid, color: cssVar('--bg') },
         textColor: cssVar('--dim'),
         fontSize: 11,
+        attributionLogo: false,
       },
       grid: {
         vertLines: { color: cssVar('--hairline') },
@@ -98,6 +109,7 @@ export default function Chart({ candles, emas, bands, rsi, show }: Props) {
     }
     seriesRef.current = s
     chartRef.current = chart
+    plRef.current = [] // 구 차트의 라인 핸들은 chart.remove()로 이미 소멸
     setData(s, dataRef.current)
     chart.timeScale().scrollToRealTime()
     return () => {
@@ -113,6 +125,23 @@ export default function Chart({ candles, emas, bands, rsi, show }: Props) {
     setData(s, { candles, emas, bands, rsi })
     chartRef.current?.timeScale().scrollToRealTime()
   }, [candles, emas, bands, rsi])
+
+  // 포지션/미체결 주문 점선 — 차트 재생성 후에도 다시 그리도록 show도 deps에 포함
+  useEffect(() => {
+    const s = seriesRef.current
+    if (!s) return
+    plRef.current.forEach((l) => s.candle.removePriceLine(l))
+    plRef.current = lines.map((l) =>
+      s.candle.createPriceLine({
+        price: l.price,
+        color: cssVar(l.up ? '--green' : '--red'),
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: l.title,
+      }),
+    )
+  }, [lines, show.ema, show.bol, show.rsi, show.vol])
 
   return <div ref={ref} style={{ width: '100%', height: 320 }} />
 }
