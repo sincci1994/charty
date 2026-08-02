@@ -5,6 +5,7 @@ import App from './App'
 import Home from './pages/Home'
 import Practice from './pages/Practice'
 import PracticeStyle from './pages/PracticeStyle'
+import CustomStyle from './pages/CustomStyle'
 import Simulation from './pages/Simulation'
 import Review from './pages/Review'
 import History from './pages/History'
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<Home />} />
           <Route path="/practice" element={<Practice />} />
           <Route path="/practice/style" element={<PracticeStyle />} />
+          <Route path="/practice/style/custom/:id?" element={<CustomStyle />} />
           <Route path="/sim" element={<Simulation />} />
           <Route path="/review" element={<Review />} />
           <Route path="/history" element={<History />} />

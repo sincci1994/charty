@@ -43,7 +43,29 @@ describe('fillOrders', () => {
     s.openOrders = [{ id: 'b', side: 'OPEN_LONG', price: 200, qty: 10 }]
     s.cash = 10000
     fillOrders(s, candle(190, 210))
-    expect(s.positions.LONG).toEqual({ qty: 20, avgPrice: 150 })
+    expect(s.positions.LONG).toEqual({
+      qty: 20,
+      avgPrice: 150,
+      entries: [{ qty: 10, price: 100 }, { qty: 10, price: 200 }],
+    })
+  })
+
+  it('구버전 포지션(entries 없음)에 추가 진입해도 동작', () => {
+    const s = sim({ positions: { LONG: { qty: 5, avgPrice: 100 } } })
+    s.openOrders = [{ id: 'a', side: 'OPEN_LONG', price: 100, qty: 5 }]
+    fillOrders(s, candle(95, 105))
+    expect(s.positions.LONG?.qty).toBe(10)
+    expect(s.positions.LONG?.entries).toEqual([{ qty: 5, price: 100 }])
+  })
+
+  it('매매 이유가 Order → Trade로 전달', () => {
+    const s = sim()
+    s.openOrders = [{ id: 'a', side: 'OPEN_LONG', price: 100, qty: 10, reasons: ['지지선 반등'] }]
+    fillOrders(s, candle(95, 105))
+    expect(s.trades.at(-1)?.reasons).toEqual(['지지선 반등'])
+    s.openOrders = [{ id: 'b', side: 'CLOSE_LONG', price: 120, qty: 10, reasons: ['수익 실현'] }]
+    fillOrders(s, candle(115, 125))
+    expect(s.trades.at(-1)?.reasons).toEqual(['수익 실현'])
   })
 
   it('숏 청산 손익: 진입가보다 싸게 되사면 이익', () => {

@@ -1,19 +1,24 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { ActiveSim, Candle, Side, SimRecord, Style } from './types'
-import { STYLES, loadCandles, loadTickers, pickRange } from './lib/data'
+import type { ActiveSim, Candle, CustomStyle, Side, SimRecord, Style } from './types'
+import { STYLES, barsFor, loadCandles, loadTickers, pickRange } from './lib/data'
 import { equity, fillOrders, forceCloseAll, validateOrder } from './lib/engine'
 
 interface State {
   balance: number
   activeSim: ActiveSim | null
   records: SimRecord[]
+  customs: CustomStyle[]
   candles: Candle[] // 활성 시뮬의 전체 캔들 (localStorage에 저장 안 함)
+  theme: 'light' | 'dark' | null // null = 시스템 설정 따름
+  setTheme: (t: 'light' | 'dark') => void
 
-  startSim: (style: Style) => Promise<void>
+  startSim: (style: string) => Promise<void>
+  saveCustom: (c: CustomStyle) => void
+  deleteCustom: (id: string) => void
   resume: () => Promise<void>
   nextCandle: () => void
-  placeOrder: (side: Side, price: number, qty: number) => string | null
+  placeOrder: (side: Side, price: number, qty: number, reasons?: string[]) => string | null
   cancelOrder: (id: string) => void
   endNow: () => void
   submitReview: (emotion: string, memo: string) => void
@@ -26,10 +31,16 @@ export const useStore = create<State>()(
       balance: 1_000_000,
       activeSim: null,
       records: [],
+      customs: [],
       candles: [],
+      theme: null,
+      setTheme: (theme) => set({ theme }),
 
       startSim: async (style) => {
-        const cfg = STYLES[style]
+        const preset = STYLES[style as Style]
+        const custom = get().customs.find((c) => c.id === style)
+        if (!preset && !custom) throw new Error('스타일을 찾을 수 없습니다')
+        const cfg = preset ?? { label: custom!.name, tf: custom!.tf, bars: barsFor(custom!) }
         const tickers = await loadTickers()
         const symbol = tickers[Math.floor(Math.random() * tickers.length)]
         const candles = await loadCandles(symbol, cfg.tf)
@@ -39,6 +50,7 @@ export const useStore = create<State>()(
           activeSim: {
             id: crypto.randomUUID(),
             style,
+            styleLabel: cfg.label,
             symbol,
             timeframe: cfg.tf,
             startIndex,
@@ -53,6 +65,14 @@ export const useStore = create<State>()(
           },
         })
       },
+
+      saveCustom: (c) => {
+        const customs = get().customs
+        const i = customs.findIndex((x) => x.id === c.id)
+        set({ customs: i >= 0 ? customs.map((x) => (x.id === c.id ? c : x)) : [...customs, c] })
+      },
+
+      deleteCustom: (id) => set({ customs: get().customs.filter((c) => c.id !== id) }),
 
       // 새로고침 후 진행중 시뮬의 캔들 다시 로드
       resume: async () => {
@@ -71,13 +91,13 @@ export const useStore = create<State>()(
         set({ activeSim: sim })
       },
 
-      placeOrder: (side, price, qty) => {
+      placeOrder: (side, price, qty, reasons) => {
         const { activeSim } = get()
         if (!activeSim || activeSim.done) return '진행중인 시뮬레이션이 없습니다'
         const err = validateOrder(activeSim, side, price, qty)
         if (err) return err
         const sim = structuredClone(activeSim)
-        sim.openOrders.push({ id: crypto.randomUUID(), side, price, qty })
+        sim.openOrders.push({ id: crypto.randomUUID(), side, price, qty, reasons })
         set({ activeSim: sim })
         return null
       },
@@ -105,6 +125,7 @@ export const useStore = create<State>()(
           id: activeSim.id,
           endedAt: Date.now(),
           style: activeSim.style,
+          styleLabel: activeSim.styleLabel,
           symbol: activeSim.symbol,
           startBalance: activeSim.startBalance,
           endBalance: activeSim.cash,
@@ -120,7 +141,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'charty',
-      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records }),
+      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records, customs: s.customs, theme: s.theme }),
     },
   ),
 )

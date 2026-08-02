@@ -1,4 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useStore } from './store'
 
 const TABS = [
   { to: '/', label: '홈', path: 'M4 11 L12 4 L20 11 V20 H14 V15 H10 V20 H4 Z' },
@@ -8,21 +10,32 @@ const TABS = [
 ]
 
 export default function App() {
+  // 시뮬/회고 화면은 자체 하단 바(트레이드 바·CTA 바)를 사용
+  const onSim = ['/sim', '/review'].includes(useLocation().pathname)
+  const theme = useStore((s) => s.theme)
+
+  // 수동 테마 선택 시 시스템 설정 대신 data-theme 속성으로 오버라이드
+  useEffect(() => {
+    if (theme) document.documentElement.dataset.theme = theme
+    else delete document.documentElement.dataset.theme
+  }, [theme])
   return (
     <div className="app">
-      <main className="content">
+      <main className={onSim ? 'content no-tab' : 'content'}>
         <Outlet />
       </main>
-      <nav className="tabbar">
-        {TABS.map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d={t.path} />
-            </svg>
-            <span>{t.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+      {!onSim && (
+        <nav className="tabbar">
+          {TABS.map((t) => (
+            <NavLink key={t.to} to={t.to} end={t.to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d={t.path} />
+              </svg>
+              <span>{t.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      )}
     </div>
   )
 }

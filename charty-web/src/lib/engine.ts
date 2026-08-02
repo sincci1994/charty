@@ -6,11 +6,13 @@ import type { ActiveSim, Candle, Order, Side } from '../types'
 function mergePosition(sim: ActiveSim, key: 'LONG' | 'SHORT', qty: number, price: number) {
   const pos = sim.positions[key]
   if (!pos) {
-    sim.positions[key] = { qty, avgPrice: price }
+    sim.positions[key] = { qty, avgPrice: price, entries: [{ qty, price }] }
   } else {
     const total = pos.qty + qty
     pos.avgPrice = (pos.avgPrice * pos.qty + price * qty) / total
     pos.qty = total
+    // ponytail: entries는 append-only 진입 로그 — 부분청산 FIFO 차감이 필요해지면 shrinkPosition에서 처리
+    ;(pos.entries ??= []).push({ qty, price })
   }
 }
 
@@ -29,7 +31,7 @@ function execute(sim: ActiveSim, o: Order, ts: number) {
     if (sim.cash < cost) return // 체결 시점 잔고 부족 → 주문 소멸
     sim.cash -= cost
     mergePosition(sim, side === 'OPEN_LONG' ? 'LONG' : 'SHORT', qty, price)
-    sim.trades.push({ ts, side, price, qty })
+    sim.trades.push({ ts, side, price, qty, reasons: o.reasons })
   } else {
     const key = side === 'CLOSE_LONG' ? 'LONG' : 'SHORT'
     const pos = sim.positions[key]
@@ -37,11 +39,11 @@ function execute(sim: ActiveSim, o: Order, ts: number) {
     const q = Math.min(qty, pos.qty)
     if (key === 'LONG') {
       sim.cash += price * q
-      sim.trades.push({ ts, side, price, qty: q, pnl: (price - pos.avgPrice) * q })
+      sim.trades.push({ ts, side, price, qty: q, pnl: (price - pos.avgPrice) * q, reasons: o.reasons })
     } else {
       // 증거금(avgPrice*q) 반환 + 손익(avgPrice - price)*q
       sim.cash += (2 * pos.avgPrice - price) * q
-      sim.trades.push({ ts, side, price, qty: q, pnl: (pos.avgPrice - price) * q })
+      sim.trades.push({ ts, side, price, qty: q, pnl: (pos.avgPrice - price) * q, reasons: o.reasons })
     }
     shrinkPosition(sim, key, q)
   }
