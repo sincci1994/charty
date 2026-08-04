@@ -5,11 +5,14 @@ import IndicatorSheet, { DEFAULT_CFG, type IndCfg } from '../components/Indicato
 import NewsPanel from '../components/NewsPanel'
 import OrderSheet from '../components/OrderSheet'
 import { currentEquity, useStore } from '../store'
-import { LOOKBACK, STYLES, TF_SEC, bollinger, ema, fmtW, loadCandles, loadEcon, resampleCandles, rsi } from '../lib/data'
+import { LOOKBACK, STYLES, TF_SEC, bollinger, ema, fmtW, loadCandles, loadEcon, loadNewsArchive, resampleCandles, rsi } from '../lib/data'
+import type { Headline } from '../lib/data'
 import type { Candle, EconIndicator, Style, Timeframe } from '../types'
 
 const TF_CHIPS: Timeframe[] = ['5m', '15m', '30m', '1h', '4h', '1d', '1w']
 const IND_KEYS = ['ema', 'bol', 'rsi', 'vol'] as const
+// 종목 숨김(******) 유지 — 회사명이 든 헤드라인은 걸러냄 (ETF는 해당 없음)
+const LEAK_NAMES: Partial<Record<string, string>> = { AAPL: 'apple', NVDA: 'nvidia', TSLA: 'tesla', MSFT: 'microsoft' }
 
 function progressText(pct: number) {
   if (pct >= 100) return '모든 캔들이 생성되었습니다!'
@@ -29,9 +32,12 @@ export default function Simulation() {
   const [extra, setExtra] = useState<Partial<Record<Timeframe, Candle[] | 'missing'>>>({}) // 잘게 보기용 파일 캐시
   const [tab, setTab] = useState<'chart' | 'news'>('chart')
   const [econ, setEcon] = useState<EconIndicator[] | null>(null)
+  const [headlines, setHeadlines] = useState<Headline[] | undefined>()
   useEffect(() => {
-    if (tab === 'news' && !econ) loadEcon().then(setEcon).catch(() => setEcon([]))
-  }, [tab, econ])
+    if (tab !== 'news') return
+    if (!econ) loadEcon().then(setEcon).catch(() => setEcon([]))
+    if (!headlines) loadNewsArchive().then(setHeadlines).catch(() => setHeadlines([]))
+  }, [tab, econ, headlines])
   const endDialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -238,7 +244,15 @@ export default function Simulation() {
         !econ ? (
           <div className="card empty" style={{ minHeight: 320, justifyContent: 'center' }}>불러오는 중…</div>
         ) : (
-          <NewsPanel econ={econ} nowTs={nowTs} />
+          <NewsPanel
+            econ={econ}
+            nowTs={nowTs}
+            headlines={headlines?.filter((h) => {
+              const t = h[1].toLowerCase()
+              const name = LEAK_NAMES[sim.symbol]
+              return !t.includes(sim.symbol.toLowerCase()) && (!name || !t.includes(name))
+            })}
+          />
         )
       ) : (
         <div style={{ position: 'relative' }}>

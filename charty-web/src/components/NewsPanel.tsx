@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { Headline } from '../lib/data'
 import type { EconIndicator } from '../types'
 
 // 클로드 디자인 "Simulation News.dc.html" 이식 — 시장 심리 대시보드
@@ -93,8 +94,9 @@ const XLabels = ({ labels }: { labels: string[] }) => (
   </div>
 )
 
-export default function NewsPanel({ econ, nowTs }: { econ: EconIndicator[]; nowTs: number }) {
+export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndicator[]; nowTs: number; headlines?: Headline[] }) {
   const [exp, setExp] = useState<string | null>(null)
+  const heads = (headlines ?? []).filter((h) => h[0] < nowTs).slice(-8).reverse() // 시뮬 시점 이전 최근 8건
 
   // 시뮬 시점 이전 발표분만, 월간 36개(3년) / VIX 주간 78개(18개월)
   const vals = (id: string, n: number) => {
@@ -215,6 +217,25 @@ export default function NewsPanel({ econ, nowTs }: { econ: EconIndicator[]; nowT
           </div>
         ))}
       </div>
+
+      {headlines && (
+        <div className="card" style={{ borderRadius: 14, padding: '13px 14px', gap: 0 }}>
+          <span className="dim" style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>뉴스</span>
+          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>주요 헤드라인</div>
+          {heads.length === 0 ? (
+            <div className="dim" style={{ fontSize: 11, marginTop: 8 }}>이 시기 뉴스는 제공되지 않아요</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 9 }}>
+              {heads.map(([ts, title, source]) => (
+                <div key={ts + title} style={{ display: 'flex', gap: 7, alignItems: 'baseline' }}>
+                  <span className="dim" style={{ fontSize: 9, fontWeight: 600, flexShrink: 0, minWidth: 38 }}>{source}</span>
+                  <span style={{ fontSize: 11.5, lineHeight: 1.35 }}>{title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {markets.length > 0 && (
         <div className="card" style={{ borderRadius: 14, padding: '13px 14px 11px', gap: 0 }}>

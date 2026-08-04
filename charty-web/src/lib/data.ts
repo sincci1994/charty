@@ -1,3 +1,4 @@
+import counts from '../../public/data/candle-counts.json'
 import type { Candle, CustomStyle, EconIndicator, NewsData, Style, Timeframe, Unit } from '../types'
 
 export const STYLES: Record<Style, { label: string; period: string; interval: string; tf: Timeframe; bars: number }> = {
@@ -36,10 +37,13 @@ export function resampleCandles(src: Candle[], tfSec: number): Candle[] {
 const DAYS_PER_UNIT: Record<Unit, number> = { 분: 1 / 390, 시간: 60 / 390, 일: 1, 주: 5, 개월: 21, 년: 252 }
 const BARS_PER_DAY: Record<Timeframe, number> = { '5m': 78, '15m': 26, '30m': 13, '1h': 7, '4h': 2, '1d': 1, '1w': 0.2 }
 
-// ponytail: 실측 최소 캔들 수(1d/1w는 TSLA 4047/840이 최소) − pickRange 최소 여유 260 — 데이터 재수집 시 갱신
-export const MAX_BARS: Record<Timeframe, number> = {
-  '5m': 4420, '15m': 1300, '30m': 520, '1h': 4800, '4h': 1440, '1d': 3780, '1w': 580,
-}
+export const EMA_WARMUP = 200 // EMA200이 유효해지는 데 필요한 앞쪽 캔들 수
+export const LOOKBACK = 60 // 시작 시 차트에 미리 보여줄 과거 캔들 수
+
+// 실측 최소 캔들 수(candle-counts.json — fetch-data.py가 생성) − pickRange 최소 여유
+export const MAX_BARS = Object.fromEntries(
+  Object.entries(counts).map(([tf, n]) => [tf, n - EMA_WARMUP - LOOKBACK]),
+) as Record<Timeframe, number>
 export const MIN_BARS = 10
 
 export function barsFor(c: CustomStyle): number {
@@ -56,9 +60,6 @@ export function estTime(bars: number): string {
 // 1000 미만(달러대 종목)은 소수 2자리 유지, 이상은 정수
 export const fmtW = (v: number) =>
   `₩${v.toLocaleString(undefined, { maximumFractionDigits: Math.abs(v) < 1000 ? 2 : 0 })}`
-
-export const EMA_WARMUP = 200 // EMA200이 유효해지는 데 필요한 앞쪽 캔들 수
-export const LOOKBACK = 60 // 시작 시 차트에 미리 보여줄 과거 캔들 수
 
 const base = import.meta.env.BASE_URL + 'data/'
 
@@ -80,6 +81,14 @@ export async function loadEcon(): Promise<EconIndicator[]> {
 
 export async function loadNews(): Promise<NewsData> {
   const res = await fetch(base + 'news.json')
+  return res.json()
+}
+
+export type Headline = [ts: number, title: string, source: string]
+
+// 시뮬 시점 매칭용 과거 헤드라인 (news-archive.json — GDELT, 2017년~)
+export async function loadNewsArchive(): Promise<Headline[]> {
+  const res = await fetch(base + 'news-archive.json')
   return res.json()
 }
 

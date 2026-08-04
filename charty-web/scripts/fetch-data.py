@@ -1,6 +1,9 @@
-# 1회 실행: yfinance에서 캔들 데이터를, FRED 공개 CSV에서 경제지표를 받아 public/data/*.json 생성
+# 데이터 수집기: 캔들 + 경제지표 + 뉴스 → public/data/*.json
 # 사용법: python scripts/fetch-data.py
+#   POLYGON_API_KEY 있으면 5m/15m/30m을 2년치로 (없으면 yfinance 60일 fallback)
+#   FRED_API_KEY 있으면 지표 발표일을 실제 최초 발표일로 (없으면 근사치 fallback)
 import json
+import os
 import time
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
@@ -13,8 +16,11 @@ import yfinance as yf
 TICKERS = ["QQQ", "SPY", "AAPL", "NVDA", "TSLA", "MSFT"]
 OUT = Path(__file__).resolve().parent.parent / "public" / "data"
 OUT.mkdir(parents=True, exist_ok=True)
+POLY_KEY = os.environ.get("POLYGON_API_KEY")
+FRED_KEY = os.environ.get("FRED_API_KEY")
 
 OHLCV = {"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}
+counts = {}  # TF별 최소 캔들 수 → candle-counts.json (data.ts의 MAX_BARS 계산에 사용)
 
 
 def dump(df, symbol, tf):
@@ -26,14 +32,35 @@ def dump(df, symbol, tf):
             df.index, df["Open"], df["High"], df["Low"], df["Close"], df["Volume"])
     ]
     (OUT / f"{symbol}_{tf}.json").write_text(json.dumps(rows, separators=(",", ":")))
+    counts[tf] = min(counts.get(tf, 10**9), len(rows))
     print(f"{symbol}_{tf}: {len(rows)} candles")
+
+
+# Polygon 무료 티어: 2년 분봉, 5req/min. splits만 조정(yfinance는 배당까지) — 훈련용 오차 허용
+def polygon_5m(sym):
+    frm = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=729)).date()
+    to = pd.Timestamp.now(tz="UTC").date()
+    url = f"https://api.polygon.io/v2/aggs/ticker/{sym}/range/5/minute/{frm}/{to}"
+    params = {"adjusted": "true", "sort": "asc", "limit": 50000, "apiKey": POLY_KEY}
+    results = []
+    while url:
+        r = requests.get(url, params=params, timeout=60).json()
+        results += r.get("results", [])
+        url = r.get("next_url")
+        params = {"apiKey": POLY_KEY}
+        time.sleep(13)  # ponytail: 5req/min 제한 — 페이지·종목 간 일괄 13초 대기
+    df = pd.DataFrame(results)
+    idx = pd.to_datetime(df["t"], unit="ms", utc=True).dt.tz_convert("America/New_York")
+    df = df.set_index(idx).rename(columns={"o": "Open", "h": "High", "l": "Low", "c": "Close", "v": "Volume"})
+    df = df.between_time("09:30", "15:55")  # 프리·애프터 제외, 정규장 시작봉만 (78개/일)
+    return df[["Open", "High", "Low", "Close", "Volume"]]
 
 
 for sym in TICKERS:
     t = yf.Ticker(sym)
-    m5 = t.history(period="60d", interval="5m")
+    m5 = polygon_5m(sym) if POLY_KEY else t.history(period="60d", interval="5m")
     dump(m5, sym, "5m")
-    # ponytail: yfinance 15m/30m도 60일 제한이라 5m 리샘플과 커버리지 동일 — 그냥 리샘플
+    # ponytail: 15m/30m은 5m 리샘플 (yfinance 직접 수집도 60일 제한이라 이득 없음)
     dump(m5.resample("15min").agg(OHLCV).dropna(), sym, "15m")
     dump(m5.resample("30min").agg(OHLCV).dropna(), sym, "30m")
     h1 = t.history(period="730d", interval="1h")
@@ -44,11 +71,11 @@ for sym in TICKERS:
     dump(t.history(period="20y", interval="1wk"), sym, "1w")
 
 (OUT / "tickers.json").write_text(json.dumps(TICKERS))
+(OUT / "candle-counts.json").write_text(json.dumps(counts))
+print("candle-counts.json:", counts)
 
 
 # ── 경제지표 (FRED fredgraph.csv — API 키 불필요) ──────────────────────────
-# releaseTs는 실제 발표일이 아니라 근사치: 관측월 시작 + LAG_DAYS.
-# ponytail: 정확한 발표 캘린더가 필요해지면 ALFRED vintage로 교체
 FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={}"
 DAY = 86400
 
@@ -60,9 +87,28 @@ def fred(series):
     return df.dropna()
 
 
-def points(df, lag_days):
-    return [[int(d.timestamp()) + lag_days * DAY, round(float(v), 2)]
-            for d, v in zip(df["date"], df["value"])]
+# ALFRED: output_type=4 → 관측치별 최초 발표(realtime_start = 실제 첫 발표일)
+def release_dates(series_id):
+    if not FRED_KEY:
+        return {}
+    r = requests.get("https://api.stlouisfed.org/fred/series/observations",
+                     params={"series_id": series_id, "api_key": FRED_KEY,
+                             "file_type": "json", "output_type": 4},
+                     timeout=60).json()
+    return {o["date"]: o["realtime_start"] for o in r["observations"]}
+
+
+def points(df, lag_days, rel=None):
+    out = []
+    for d, v in zip(df["date"], df["value"]):
+        r = rel.get(d.strftime("%Y-%m-%d")) if rel else None
+        if r:
+            # 실제 발표일 08:30 ET (CPI 등 주요 지표 발표 시각) — ponytail: DST는 pandas가 처리
+            ts = int(pd.Timestamp(f"{r} 08:30", tz="America/New_York").timestamp())
+        else:
+            ts = int(d.timestamp()) + lag_days * DAY  # vintage 없는 옛 구간 근사 fallback
+        out.append([ts, round(float(v), 2)])
+    return out
 
 
 def yoy(series):
@@ -77,6 +123,10 @@ dff_m = dff.set_index("date").resample("ME").last().dropna().reset_index()  # �
 payems = fred("PAYEMS")
 payems["value"] = payems["value"].diff()  # 월간 증감 (천 명)
 payems = payems.dropna()
+
+rel_cpi = release_dates("CPIAUCSL")
+if rel_cpi:
+    assert rel_cpi.get("2024-06-01") == "2024-07-11", f"CPI 발표일 검증 실패: {rel_cpi.get('2024-06-01')}"
 
 # 주간 종가 시리즈 (VIX·주요지수): 시장이 실시간으로 아는 값 — 발표 지연 없음
 def weekly(ticker):
@@ -98,12 +148,12 @@ fng_pts = [[int(ts.timestamp()), round(float(v), 1)] for ts, v in fng.items()]
 
 econ = [
     {"id": "FFR", "label": "기준금리(실효)", "unit": "%", "data": points(dff_m, 0)},
-    {"id": "CPI", "label": "CPI 전년비", "unit": "%", "data": points(yoy("CPIAUCSL"), 45)},
-    {"id": "PCE", "label": "PCE 물가 전년비", "unit": "%", "data": points(yoy("PCEPI"), 58)},
-    {"id": "PPI", "label": "PPI 전년비", "unit": "%", "data": points(yoy("PPIACO"), 14)},
-    {"id": "UNEMP", "label": "실업률", "unit": "%", "data": points(fred("UNRATE"), 37)},
-    {"id": "NFP", "label": "비농업 고용 증감", "unit": "천 명", "data": points(payems, 37)},
-    {"id": "M2", "label": "M2 증가율(전년비)", "unit": "%", "data": points(yoy("M2SL"), 28)},
+    {"id": "CPI", "label": "CPI 전년비", "unit": "%", "data": points(yoy("CPIAUCSL"), 45, rel_cpi)},
+    {"id": "PCE", "label": "PCE 물가 전년비", "unit": "%", "data": points(yoy("PCEPI"), 58, release_dates("PCEPI"))},
+    {"id": "PPI", "label": "PPI 전년비", "unit": "%", "data": points(yoy("PPIACO"), 14, release_dates("PPIACO"))},
+    {"id": "UNEMP", "label": "실업률", "unit": "%", "data": points(fred("UNRATE"), 37, release_dates("UNRATE"))},
+    {"id": "NFP", "label": "비농업 고용 증감", "unit": "천 명", "data": points(payems, 37, release_dates("PAYEMS"))},
+    {"id": "M2", "label": "M2 증가율(전년비)", "unit": "%", "data": points(yoy("M2SL"), 28, release_dates("M2SL"))},
     {"id": "VIX", "label": "VIX 변동성지수", "unit": "", "data": weekly("^VIX")},
     {"id": "NDX", "label": "나스닥 100", "unit": "", "data": weekly("^NDX")},
     {"id": "GOLD", "label": "금 선물 (온스)", "unit": "$", "data": weekly("GC=F")},
@@ -139,4 +189,50 @@ news = {
 }
 (OUT / "news.json").write_text(json.dumps(news, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 print("news.json:", {k: len(v) for k, v in news.items() if isinstance(v, list)})
+
+
+# ── 뉴스 아카이브 (GDELT DOC 2.0, 키 불필요 — 시뮬 시점 매칭용, 2017년~) ────
+# 주 단위 주요 헤드라인을 사전 생성해 정적 JSON화. 기존 파일이 있으면 이후 주만 이어받음(증분).
+ARCHIVE = OUT / "news-archive.json"
+SOURCES = {"reuters.com": "Reuters", "cnbc.com": "CNBC", "apnews.com": "AP"}
+GDELT_Q = '("stock market" OR "Federal Reserve" OR inflation) (domain:reuters.com OR domain:cnbc.com OR domain:apnews.com) sourcelang:eng'
+
+
+def gdelt_week(start):
+    p = {"query": GDELT_Q, "mode": "artlist", "format": "json", "maxrecords": 8, "sort": "hybridrel",
+         "startdatetime": start.strftime("%Y%m%d000000"),
+         "enddatetime": (start + pd.Timedelta(days=7)).strftime("%Y%m%d000000")}
+    for _ in range(3):
+        try:
+            arts = requests.get("https://api.gdeltproject.org/api/v2/doc/doc",
+                                params=p, timeout=30).json().get("articles", [])
+            out, seen = [], set()
+            for a in arts:
+                title = a.get("title", "").strip()
+                dom = a.get("domain", "")
+                if not title or title in seen or dom not in SOURCES:
+                    continue
+                seen.add(title)
+                out.append([int(pd.Timestamp(a["seendate"]).timestamp()), title, SOURCES[dom]])
+                if len(out) == 5:
+                    break
+            return out
+        except (ValueError, requests.RequestException):
+            time.sleep(10)  # 스로틀/일시 오류 — 쉬고 재시도
+    return []  # 3회 실패한 주는 건너뜀
+
+
+old = json.loads(ARCHIVE.read_text(encoding="utf-8")) if ARCHIVE.exists() else []
+week = (pd.Timestamp(max(p[0] for p in old), unit="s", tz="UTC").normalize() + pd.Timedelta(days=7)
+        if old else pd.Timestamp("2017-01-02", tz="UTC"))
+now = pd.Timestamp.now(tz="UTC")
+archive = old
+while week < now:
+    archive += gdelt_week(week)
+    week += pd.Timedelta(days=7)
+    time.sleep(5.5)  # GDELT 제한: 5초당 1요청 (~470주 최초 실행 시 45분쯤 걸림)
+archive.sort(key=lambda p: p[0])
+(OUT / "news-archive.json").write_text(
+    json.dumps(archive, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+print("news-archive.json:", len(archive), "headlines")
 print("done ->", OUT)
