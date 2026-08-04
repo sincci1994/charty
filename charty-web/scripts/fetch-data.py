@@ -205,11 +205,11 @@ def gdelt_week(start):
     p = {"query": GDELT_Q, "mode": "artlist", "format": "json", "maxrecords": 8, "sort": "hybridrel",
          "startdatetime": start.strftime("%Y%m%d000000"),
          "enddatetime": (start + pd.Timedelta(days=7)).strftime("%Y%m%d000000")}
-    for _ in range(3):
+    for i in range(3):
         try:
             r = requests.get("https://api.gdeltproject.org/api/v2/doc/doc", params=p, timeout=30)
-            if r.status_code == 429:  # 스로틀 — 길게 쉬고 재시도
-                time.sleep(30)
+            if r.status_code == 429:  # 스로틀 — 지수 백오프 후 재시도
+                time.sleep(60 * 2**i)
                 continue
             arts = r.json().get("articles", [])
             out, seen = [], set()
@@ -224,8 +224,8 @@ def gdelt_week(start):
                     break
             return out
         except (ValueError, requests.RequestException):
-            time.sleep(10)  # 스로틀/일시 오류 — 쉬고 재시도
-    return []  # 3회 실패한 주는 건너뜀
+            time.sleep(10)  # 일시 오류 — 쉬고 재시도
+    return None  # 3회 실패 — 차단 상태로 보고 중단 신호
 
 
 old = json.loads(ARCHIVE.read_text(encoding="utf-8")) if ARCHIVE.exists() else []
@@ -234,9 +234,13 @@ week = (pd.Timestamp(max(p[0] for p in old), unit="s", tz="UTC").normalize() + p
 now = pd.Timestamp.now(tz="UTC")
 archive = old
 while week < now:
-    archive += gdelt_week(week)
+    got = gdelt_week(week)
+    if got is None:  # 차단 지속 — 진행분 저장 후 중단, 다음 실행이 이 주부터 이어받음
+        print("GDELT 429 지속 — 진행분 저장 후 중단:", week.date())
+        break
+    archive += got
     week += pd.Timedelta(days=7)
-    time.sleep(7)  # GDELT 제한(5초당 1요청)에 여유를 둠 — 최초 실행 ~1시간
+    time.sleep(10)  # GDELT 제한(5초당 1요청)에 여유를 둠 — 최초 실행 ~1.5시간
 archive.sort(key=lambda p: p[0])
 (OUT / "news-archive.json").write_text(
     json.dumps(archive, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
