@@ -219,10 +219,7 @@ export default function Simulation() {
       </div>
 
       <div className="symbol-row">
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <b style={{ letterSpacing: 1 }}>{sim.done ? sim.symbol : '******'}</b>
-          <span className="dim small">{sim.done ? '' : '(숨김) · '}{styleLabel} · {sim.timeframe}</span>
-        </div>
+        <span className="dim small" style={{ whiteSpace: 'nowrap' }}>{sim.done ? `${sim.symbol} · ` : ''}{styleLabel} · {sim.timeframe}</span>
         <div className="tf-chips" style={tab === 'news' ? { visibility: 'hidden' } : undefined}>
           {TF_CHIPS.map((tf) => {
             const missing = TF_SEC[tf] < TF_SEC[sim.timeframe] && extra[tf] === 'missing'
