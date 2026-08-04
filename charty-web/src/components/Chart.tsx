@@ -28,23 +28,24 @@ export interface PriceLineSpec {
 
 interface Props {
   candles: Candle[]
-  emas: { e13: (number | null)[]; e25: (number | null)[]; e200: (number | null)[] } // candles와 같은 인덱스
+  emas: { e1: (number | null)[]; e2: (number | null)[]; e3: (number | null)[] } // candles와 같은 인덱스
   bands: { upper: (number | null)[]; lower: (number | null)[] }
   rsi: (number | null)[]
   show: IndicatorShow
   lines: PriceLineSpec[]
 }
 
-const EMA_COLORS = { e13: '#f5a623', e25: '#3d5cff', e200: '#9b2ff8' } as const
+export const EMA_COLORS = { e1: '#f5a623', e2: '#3d5cff', e3: '#9b2ff8' } as const
+export const BOL_COLOR = 'rgba(92,168,255,0.55)'
 
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
 interface SeriesMap {
   candle: ISeriesApi<'Candlestick'>
   volume?: ISeriesApi<'Histogram'>
-  e13?: ISeriesApi<'Line'>
-  e25?: ISeriesApi<'Line'>
-  e200?: ISeriesApi<'Line'>
+  e1?: ISeriesApi<'Line'>
+  e2?: ISeriesApi<'Line'>
+  e3?: ISeriesApi<'Line'>
   bolUpper?: ISeriesApi<'Line'>
   bolLower?: ISeriesApi<'Line'>
   rsi?: ISeriesApi<'Line'>
@@ -94,17 +95,17 @@ export default function Chart({ candles, emas, bands, rsi, show, lines }: Props)
       chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } })
     }
     if (show.ema) {
-      s.e13 = line(EMA_COLORS.e13)
-      s.e25 = line(EMA_COLORS.e25)
-      s.e200 = line(EMA_COLORS.e200)
+      s.e1 = line(EMA_COLORS.e1)
+      s.e2 = line(EMA_COLORS.e2)
+      s.e3 = line(EMA_COLORS.e3)
     }
     if (show.bol) {
-      s.bolUpper = line('rgba(92,168,255,0.55)')
-      s.bolLower = line('rgba(92,168,255,0.55)')
+      s.bolUpper = line(BOL_COLOR)
+      s.bolLower = line(BOL_COLOR)
     }
     if (show.rsi) {
       // v5 네이티브 pane — paneIndex 1이 자동 생성됨
-      s.rsi = chart.addSeries(LineSeries, { color: EMA_COLORS.e200, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 1)
+      s.rsi = chart.addSeries(LineSeries, { color: EMA_COLORS.e3, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 1)
       chart.panes()[1]?.setHeight(80)
     }
     seriesRef.current = s
@@ -160,9 +161,9 @@ function setData(s: SeriesMap, d: { candles: Candle[]; emas: Props['emas']; band
     candles
       .map((c, i) => ({ time: c.ts as UTCTimestamp, value: vals[i] }))
       .filter((p): p is { time: UTCTimestamp; value: number } => p.value != null)
-  s.e13?.setData(lineData(emas.e13))
-  s.e25?.setData(lineData(emas.e25))
-  s.e200?.setData(lineData(emas.e200))
+  s.e1?.setData(lineData(emas.e1))
+  s.e2?.setData(lineData(emas.e2))
+  s.e3?.setData(lineData(emas.e3))
   s.bolUpper?.setData(lineData(bands.upper))
   s.bolLower?.setData(lineData(bands.lower))
   s.rsi?.setData(lineData(rsi))

@@ -21,6 +21,7 @@ interface State {
   placeOrder: (side: Side, price: number, qty: number, reasons?: string[]) => string | null
   cancelOrder: (id: string) => void
   endNow: () => void
+  discardSim: () => void
   submitReview: (emotion: string, memo: string) => void
   resetAll: () => void
 }
@@ -117,6 +118,9 @@ export const useStore = create<State>()(
         forceCloseAll(sim, candles[sim.cursor])
         set({ activeSim: sim })
       },
+
+      // 진행중 시뮬을 기록 없이 폐기 (홈 '새로 시작') — 잔고는 시뮬 시작 전 그대로
+      discardSim: () => set({ activeSim: null, candles: [] }),
 
       submitReview: (emotion, memo) => {
         const { activeSim, records } = get()

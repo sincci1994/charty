@@ -21,13 +21,13 @@ function sim(over: Partial<ActiveSim> = {}): ActiveSim {
   }
 }
 
-const candle = (l: number, h: number, c = h): Candle => ({ ts: 1, o: l, h, l, c, v: 100 })
+const candle = (l: number, h: number, c = h, o = c): Candle => ({ ts: 1, o, h, l, c, v: 100 })
 
 describe('fillOrders', () => {
   it('저가~고가 경계 포함 시 체결, 벗어나면 미체결', () => {
     const s = sim({ openOrders: [
       { id: 'a', side: 'OPEN_LONG', price: 100, qty: 10 }, // == low → 체결 (비용 1000)
-      { id: 'b', side: 'OPEN_LONG', price: 110, qty: 100 }, // == high지만 비용 11000 > 잔고 9000 → 소멸
+      { id: 'b', side: 'OPEN_LONG', price: 110, qty: 100 }, // 체결가 min(시가 110, 지정가 110)=110, 비용 11000 > 잔고 9000 → 소멸
       { id: 'c', side: 'OPEN_LONG', price: 99.99, qty: 1 }, // < low → 잔류
     ] })
     fillOrders(s, candle(100, 110))
@@ -68,10 +68,25 @@ describe('fillOrders', () => {
     expect(s.trades.at(-1)?.reasons).toEqual(['수익 실현'])
   })
 
+  it('갭 체결: 시가가 지정가보다 유리하면 시가로 체결', () => {
+    // 매수 갭다운 — 캔들 전체(80~90)가 지정가 100 아래여도 시가 82로 체결
+    const s = sim()
+    s.openOrders = [{ id: 'a', side: 'OPEN_LONG', price: 100, qty: 10 }]
+    fillOrders(s, candle(80, 90, 85, 82))
+    expect(s.positions.LONG).toMatchObject({ qty: 10, avgPrice: 82 })
+    expect(s.cash).toBe(10000 - 820)
+    expect(s.trades.at(-1)?.price).toBe(82)
+    // 매도(숏 진입) 갭업 — 캔들 전체(110~120)가 지정가 100 위여도 시가 112로 체결
+    const s2 = sim()
+    s2.openOrders = [{ id: 'b', side: 'OPEN_SHORT', price: 100, qty: 10 }]
+    fillOrders(s2, candle(110, 120, 115, 112))
+    expect(s2.positions.SHORT).toMatchObject({ qty: 10, avgPrice: 112 })
+  })
+
   it('숏 청산 손익: 진입가보다 싸게 되사면 이익', () => {
     const s = sim({ cash: 1000 })
     s.openOrders = [{ id: 'a', side: 'OPEN_SHORT', price: 100, qty: 10 }]
-    fillOrders(s, candle(95, 105)) // 증거금 1000 잠김 → cash 0
+    fillOrders(s, candle(95, 105, 105, 98)) // 시가 98 < 지정가 → 지정가 100 체결, 증거금 1000 잠김 → cash 0
     expect(s.cash).toBe(0)
     s.openOrders = [{ id: 'b', side: 'CLOSE_SHORT', price: 80, qty: 10 }]
     fillOrders(s, candle(75, 85))

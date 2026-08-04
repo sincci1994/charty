@@ -1,4 +1,4 @@
-import type { Candle, CustomStyle, Style, Timeframe, Unit } from '../types'
+import type { Candle, CustomStyle, EconIndicator, NewsData, Style, Timeframe, Unit } from '../types'
 
 export const STYLES: Record<Style, { label: string; period: string; interval: string; tf: Timeframe; bars: number }> = {
   SCALP: { label: '단타', period: '1일', interval: '5분', tf: '5m', bars: 78 },
@@ -6,14 +6,40 @@ export const STYLES: Record<Style, { label: string; period: string; interval: st
   LONG: { label: '장기투자', period: '60일', interval: '4시간', tf: '4h', bars: 120 },
 }
 
-export const TF_LABELS: Record<Timeframe, string> = { '5m': '5분', '1h': '1시간', '4h': '4시간' }
+export const TF_LABELS: Record<Timeframe, string> = {
+  '5m': '5분', '15m': '15분', '30m': '30분', '1h': '1시간', '4h': '4시간', '1d': '1일', '1w': '1주',
+}
+
+export const TF_SEC: Record<Timeframe, number> = {
+  '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800,
+}
+
+// 버킷 시작(floor(ts/tfSec)) 기준 OHLCV 집계 — src는 ts 오름차순 가정, 마지막 버킷은 부분 캔들일 수 있음
+export function resampleCandles(src: Candle[], tfSec: number): Candle[] {
+  const out: Candle[] = []
+  for (const c of src) {
+    const ts = Math.floor(c.ts / tfSec) * tfSec
+    const last = out[out.length - 1]
+    if (last && last.ts === ts) {
+      last.h = Math.max(last.h, c.h)
+      last.l = Math.min(last.l, c.l)
+      last.c = c.c
+      last.v += c.v
+    } else {
+      out.push({ ts, o: c.o, h: c.h, l: c.l, c: c.c, v: c.v })
+    }
+  }
+  return out
+}
 
 // 미국장 6.5h(390분) 기준 거래일 환산
 const DAYS_PER_UNIT: Record<Unit, number> = { 분: 1 / 390, 시간: 60 / 390, 일: 1, 주: 5, 개월: 21, 년: 252 }
-const BARS_PER_DAY: Record<Timeframe, number> = { '5m': 78, '1h': 7, '4h': 2 }
+const BARS_PER_DAY: Record<Timeframe, number> = { '5m': 78, '15m': 26, '30m': 13, '1h': 7, '4h': 2, '1d': 1, '1w': 0.2 }
 
-// ponytail: 실측 캔들 수(5m 4680 / 1h 5072 / 4h 1704) − pickRange 최소 여유 260 — 데이터 재수집 시 갱신
-export const MAX_BARS: Record<Timeframe, number> = { '5m': 4420, '1h': 4800, '4h': 1440 }
+// ponytail: 실측 최소 캔들 수(1d/1w는 TSLA 4047/840이 최소) − pickRange 최소 여유 260 — 데이터 재수집 시 갱신
+export const MAX_BARS: Record<Timeframe, number> = {
+  '5m': 4420, '15m': 1300, '30m': 520, '1h': 4800, '4h': 1440, '1d': 3780, '1w': 580,
+}
 export const MIN_BARS = 10
 
 export function barsFor(c: CustomStyle): number {
@@ -45,6 +71,16 @@ export async function loadCandles(symbol: string, tf: Timeframe): Promise<Candle
   const res = await fetch(`${base}${symbol}_${tf}.json`)
   const rows: number[][] = await res.json()
   return rows.map(([ts, o, h, l, c, v]) => ({ ts, o, h, l, c, v }))
+}
+
+export async function loadEcon(): Promise<EconIndicator[]> {
+  const res = await fetch(base + 'econ.json')
+  return res.json()
+}
+
+export async function loadNews(): Promise<NewsData> {
+  const res = await fetch(base + 'news.json')
+  return res.json()
 }
 
 export function ema(closes: number[], period: number): (number | null)[] {

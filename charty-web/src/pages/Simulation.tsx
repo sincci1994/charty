@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Chart, { type IndicatorShow, type PriceLineSpec } from '../components/Chart'
+import Chart, { BOL_COLOR, EMA_COLORS, type IndicatorShow, type PriceLineSpec } from '../components/Chart'
+import IndicatorSheet, { DEFAULT_CFG, type IndCfg } from '../components/IndicatorSheet'
+import NewsPanel from '../components/NewsPanel'
 import OrderSheet from '../components/OrderSheet'
 import { currentEquity, useStore } from '../store'
-import { LOOKBACK, STYLES, bollinger, ema, fmtW, rsi } from '../lib/data'
-import type { Style } from '../types'
+import { LOOKBACK, STYLES, TF_SEC, bollinger, ema, fmtW, loadCandles, loadEcon, resampleCandles, rsi } from '../lib/data'
+import type { Candle, EconIndicator, Style, Timeframe } from '../types'
 
-const TF_CHIPS = ['5m', '15m', '1h', '4h', '1d'] // 표시 전용 — 현재 시뮬 TF만 활성
+const TF_CHIPS: Timeframe[] = ['5m', '15m', '30m', '1h', '4h', '1d', '1w']
 const IND_KEYS = ['ema', 'bol', 'rsi', 'vol'] as const
 
 function progressText(pct: number) {
@@ -20,7 +22,16 @@ export default function Simulation() {
   const nav = useNavigate()
   const { activeSim: sim, candles, nextCandle, endNow, cancelOrder, resume } = useStore()
   const [show, setShow] = useState<IndicatorShow>({ ema: true, bol: false, rsi: false, vol: true })
+  const [cfg, setCfg] = useState<IndCfg>(DEFAULT_CFG)
+  const [indOpen, setIndOpen] = useState(false)
   const [sheetDir, setSheetDir] = useState<'LONG' | 'SHORT' | null>(null)
+  const [viewTf, setViewTf] = useState<Timeframe | null>(null) // null = 세션 TF
+  const [extra, setExtra] = useState<Partial<Record<Timeframe, Candle[] | 'missing'>>>({}) // 잘게 보기용 파일 캐시
+  const [tab, setTab] = useState<'chart' | 'news'>('chart')
+  const [econ, setEcon] = useState<EconIndicator[] | null>(null)
+  useEffect(() => {
+    if (tab === 'news' && !econ) loadEcon().then(setEcon).catch(() => setEcon([]))
+  }, [tab, econ])
   const endDialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -53,20 +64,31 @@ export default function Simulation() {
     prevTrades.current = n
   }, [sim])
 
+  // 시뮬 시간이 경제지표 발표 시점을 지나면 토스트
+  const prevNowRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!sim || candles.length === 0 || !econ) return
+    const now = candles[sim.cursor].ts + TF_SEC[sim.timeframe]
+    const prev = prevNowRef.current
+    prevNowRef.current = now
+    if (prev !== null && now > prev && econ.some((e) => e.data.some((p) => p[0] >= prev && p[0] < now)))
+      setToast({ id: Date.now(), msg: '새 경제지표가 발표되었어요' })
+  }, [sim, candles, econ])
+
   const indicators = useMemo(() => {
     const closes = candles.map((c) => c.c)
     return {
-      emas: { e13: ema(closes, 13), e25: ema(closes, 25), e200: ema(closes, 200) },
-      bands: bollinger(closes),
-      rsis: rsi(closes),
+      emas: { e1: ema(closes, cfg.e1), e2: ema(closes, cfg.e2), e3: ema(closes, cfg.e3) },
+      bands: bollinger(closes, cfg.bolP, cfg.bolK),
+      rsis: rsi(closes, cfg.rsiP),
     }
-  }, [candles])
+  }, [candles, cfg])
 
   const visible = useMemo(() => {
     if (!sim) {
       return {
         candles: [],
-        emas: { e13: [], e25: [], e200: [] },
+        emas: { e1: [], e2: [], e3: [] },
         bands: { upper: [], lower: [] },
         rsi: [],
       }
@@ -77,17 +99,68 @@ export default function Simulation() {
     const { emas, bands, rsis } = indicators
     return {
       candles: candles.slice(from, to),
-      emas: { e13: cut(emas.e13), e25: cut(emas.e25), e200: cut(emas.e200) },
+      emas: { e1: cut(emas.e1), e2: cut(emas.e2), e3: cut(emas.e3) },
       bands: { upper: cut(bands.upper), lower: cut(bands.lower) },
       rsi: cut(rsis),
     }
   }, [sim, candles, indicators])
+
+  // 세션 TF와 다른 시간봉 보기 — 미래 누출 방지: 컷오프(현재 캔들 ts + 세션 간격) 이후 데이터는 절대 사용 안 함
+  const effTf: Timeframe = viewTf ?? sim?.timeframe ?? '4h'
+  const view = useMemo(() => {
+    if (!sim || candles.length === 0 || effTf === sim.timeframe) return null // null → visible 사용
+    const cutoff = candles[sim.cursor].ts + TF_SEC[sim.timeframe]
+    const fromTs = candles[Math.max(0, sim.startIndex - LOOKBACK)].ts
+    let src: Candle[]
+    if (TF_SEC[effTf] > TF_SEC[sim.timeframe]) {
+      // 굵게 보기: 세션 캔들을 자른 뒤 리샘플 — 마지막 버킷은 부분 캔들(실전과 동일)
+      src = resampleCandles(candles.filter((c) => c.ts < cutoff), TF_SEC[effTf])
+    } else {
+      // 잘게 보기: 해당 TF 파일에서 컷오프 이전만 — 컷오프가 세션 캔들 경계라 열린 캔들 없음
+      const file = extra[effTf]
+      if (!file || file === 'missing') return null
+      src = file.filter((c) => c.ts < cutoff)
+    }
+    const closes = src.map((c) => c.c)
+    const emas = { e1: ema(closes, cfg.e1), e2: ema(closes, cfg.e2), e3: ema(closes, cfg.e3) }
+    const bands = bollinger(closes, cfg.bolP, cfg.bolK)
+    const rsis = rsi(closes, cfg.rsiP)
+    const start = Math.max(0, src.findIndex((c) => c.ts >= fromTs))
+    const cut = (a: (number | null)[]) => a.slice(start)
+    return {
+      candles: src.slice(start),
+      emas: { e1: cut(emas.e1), e2: cut(emas.e2), e3: cut(emas.e3) },
+      bands: { upper: cut(bands.upper), lower: cut(bands.lower) },
+      rsi: cut(rsis),
+    }
+  }, [sim, candles, effTf, extra, cfg])
+
+  const pickTf = (tf: Timeframe) => {
+    if (!sim) return
+    if (tf === sim.timeframe || TF_SEC[tf] > TF_SEC[sim.timeframe]) return setViewTf(tf)
+    const cached = extra[tf]
+    if (cached === 'missing') return
+    if (cached) return setViewTf(tf)
+    const fromTs = candles[Math.max(0, sim.startIndex - LOOKBACK)]?.ts ?? 0
+    loadCandles(sim.symbol, tf)
+      .then((file) => {
+        if (file.length === 0 || file[0].ts > fromTs) {
+          setExtra((e) => ({ ...e, [tf]: 'missing' }))
+          setToast({ id: Date.now(), msg: `이 구간엔 ${tf} 데이터가 없어요` })
+        } else {
+          setExtra((e) => ({ ...e, [tf]: file }))
+          setViewTf(tf)
+        }
+      })
+      .catch(() => setToast({ id: Date.now(), msg: '데이터를 불러오지 못했어요' }))
+  }
 
   if (!sim || candles.length === 0) return <div className="page"><div className="empty">불러오는 중…</div></div>
 
   const total = sim.endIndex - sim.startIndex
   const pct = total > 0 ? Math.round(((sim.cursor - sim.startIndex) / total) * 100) : 100
   const price = candles[sim.cursor].c
+  const nowTs = candles[sim.cursor].ts + TF_SEC[sim.timeframe] // 현재 캔들 마감 시각 = 시뮬의 '지금'
   const eq = currentEquity(sim, candles)
   const pnl = eq - sim.startBalance
   const pnlPct = (pnl / sim.startBalance) * 100
@@ -104,6 +177,16 @@ export default function Simulation() {
   for (const o of sim.openOrders)
     lines.push({ price: o.price, up: o.side.includes('LONG'), title: `${o.side.startsWith('OPEN') ? '진입' : '청산'} ${o.qty}주` })
 
+  const legend: { txt: string; color: string }[] = []
+  if (show.ema)
+    legend.push(
+      { txt: `EMA ${cfg.e1}`, color: EMA_COLORS.e1 },
+      { txt: `EMA ${cfg.e2}`, color: EMA_COLORS.e2 },
+      { txt: `EMA ${cfg.e3}`, color: EMA_COLORS.e3 },
+    )
+  if (show.bol) legend.push({ txt: `BOL ${cfg.bolP},${cfg.bolK}σ`, color: BOL_COLOR })
+  if (show.rsi) legend.push({ txt: `RSI ${cfg.rsiP}`, color: EMA_COLORS.e3 })
+
   return (
     <div className="page" style={{ paddingBottom: sim.done ? 16 : 130 }}>
       <div className="sim-topbar">
@@ -113,10 +196,8 @@ export default function Simulation() {
           </svg>
         </button>
         <div className="sim-tabs">
-          <div className="sim-tab active">Chart</div>
-          <div className="sim-tab off">
-            News <span className="badge">준비중</span>
-          </div>
+          <button className={`sim-tab${tab === 'chart' ? ' active' : ''}`} onClick={() => setTab('chart')}>Chart</button>
+          <button className={`sim-tab${tab === 'news' ? ' active' : ''}`} onClick={() => setTab('news')}>News</button>
         </div>
         {!sim.done && (
           <button className="end-btn" onClick={() => endDialogRef.current?.showModal()}>End</button>
@@ -136,17 +217,54 @@ export default function Simulation() {
           <b style={{ letterSpacing: 1 }}>{sim.done ? sim.symbol : '******'}</b>
           <span className="dim small">{sim.done ? '' : '(숨김) · '}{styleLabel} · {sim.timeframe}</span>
         </div>
-        <div className="tf-chips">
-          {TF_CHIPS.map((tf) => (
-            <span key={tf} className={tf === sim.timeframe ? 'chip active' : 'chip off'}>{tf}</span>
-          ))}
+        <div className="tf-chips" style={tab === 'news' ? { visibility: 'hidden' } : undefined}>
+          {TF_CHIPS.map((tf) => {
+            const missing = TF_SEC[tf] < TF_SEC[sim.timeframe] && extra[tf] === 'missing'
+            return (
+              <button
+                key={tf}
+                className={tf === effTf ? 'chip active' : missing ? 'chip off' : 'chip'}
+                disabled={missing}
+                onClick={() => pickTf(tf)}
+              >
+                {tf}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      <Chart candles={visible.candles} emas={visible.emas} bands={visible.bands} rsi={visible.rsi} show={show} lines={lines} />
+      {tab === 'news' ? (
+        !econ ? (
+          <div className="card empty" style={{ minHeight: 320, justifyContent: 'center' }}>불러오는 중…</div>
+        ) : (
+          <NewsPanel econ={econ} nowTs={nowTs} />
+        )
+      ) : (
+        <div style={{ position: 'relative' }}>
+          <Chart
+            candles={(view ?? visible).candles}
+            emas={(view ?? visible).emas}
+            bands={(view ?? visible).bands}
+            rsi={(view ?? visible).rsi}
+            show={show}
+            lines={lines}
+          />
+          {legend.length > 0 && (
+            <div className="chart-legend">
+              {legend.map((lg) => (
+                <span key={lg.txt}>
+                  <span className="legend-swatch" style={{ background: lg.color }} />
+                  {lg.txt}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="ind-row">
-        <div className="ind-chips">
+        <div className="ind-chips" style={tab === 'news' ? { visibility: 'hidden' } : undefined}>
           {IND_KEYS.map((k) => (
             <button
               key={k}
@@ -156,6 +274,12 @@ export default function Simulation() {
               {k.toUpperCase()}
             </button>
           ))}
+          <button className="ind-set-btn" aria-label="보조지표 설정" onClick={() => setIndOpen(true)}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="4" y1="7" x2="20" y2="7" /><circle cx="9" cy="7" r="2.6" fill="var(--bg)" />
+              <line x1="4" y1="17" x2="20" y2="17" /><circle cx="15" cy="17" r="2.6" fill="var(--bg)" />
+            </svg>
+          </button>
         </div>
         {sim.done ? (
           <button className="pill pill-primary pulse" style={{ height: 36, fontSize: 12, fontWeight: 600 }} onClick={() => nav('/review')}>
@@ -251,6 +375,15 @@ export default function Simulation() {
           />
         </>
       )}
+
+      <IndicatorSheet
+        show={show}
+        cfg={cfg}
+        open={indOpen}
+        onShow={setShow}
+        onCfg={setCfg}
+        onClose={() => setIndOpen(false)}
+      />
 
       {toast && (
         <div className="toast-wrap" key={toast.id}>

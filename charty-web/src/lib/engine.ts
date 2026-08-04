@@ -23,8 +23,8 @@ function shrinkPosition(sim: ActiveSim, key: 'LONG' | 'SHORT', qty: number) {
   if (pos.qty <= 0) delete sim.positions[key]
 }
 
-function execute(sim: ActiveSim, o: Order, ts: number) {
-  const { side, price, qty } = o
+function execute(sim: ActiveSim, o: Order, ts: number, price: number) {
+  const { side, qty } = o
   if (side === 'OPEN_LONG' || side === 'OPEN_SHORT') {
     // ponytail: 숏도 진입금액만큼 증거금을 잠근다 (무한 공매도 방지)
     const cost = price * qty
@@ -49,11 +49,14 @@ function execute(sim: ActiveSim, o: Order, ts: number) {
   }
 }
 
-// Next Candle: 새 캔들의 저가~고가 범위에 지정가가 들어오면 지정가로 체결
+// Next Candle: 지정가 도달 시 지정가로, 시가가 지정가보다 유리하면(갭) 시가로 체결
+// 매수(롱 진입·숏 청산)는 low <= 지정가면 min(시가, 지정가), 매도는 대칭
 export function fillOrders(sim: ActiveSim, candle: Candle) {
   const remaining: Order[] = []
   for (const o of sim.openOrders) {
-    if (candle.l <= o.price && o.price <= candle.h) execute(sim, o, candle.ts)
+    const buy = o.side === 'OPEN_LONG' || o.side === 'CLOSE_SHORT'
+    const hit = buy ? candle.l <= o.price : candle.h >= o.price
+    if (hit) execute(sim, o, candle.ts, buy ? Math.min(candle.o, o.price) : Math.max(candle.o, o.price))
     else remaining.push(o)
   }
   sim.openOrders = remaining

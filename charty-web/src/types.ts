@@ -1,4 +1,23 @@
-export type Timeframe = '5m' | '1h' | '4h'
+export type Timeframe = '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w'
+
+export interface EconIndicator {
+  id: string
+  label: string
+  unit: string
+  data: [number, number][] // [발표일 근사 ts, 값] 오름차순
+}
+
+export interface NewsItem {
+  title: string
+  source: string
+  link: string
+  ts: number
+}
+export interface NewsData {
+  fetchedAt: number
+  kr: NewsItem[]
+  us: NewsItem[]
+}
 export type Style = 'SCALP' | 'SWING' | 'LONG'
 export type Unit = '분' | '시간' | '일' | '주' | '개월' | '년' // 리터럴이 곧 표시 문자열
 

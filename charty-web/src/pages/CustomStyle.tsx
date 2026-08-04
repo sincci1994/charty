@@ -7,10 +7,10 @@ import { useStore } from '../store'
 const UNIT_MAX: Record<Unit, number> = { 분: 1440, 시간: 720, 일: 365, 주: 52, 개월: 24, 년: 5 }
 const MAX_CANDLES = 2000 // UX 상한 — 데이터 상한(MAX_BARS)과 별개로 시뮬이 늘어지는 것 방지
 const UNITS = Object.keys(UNIT_MAX) as Unit[]
-// tf 없는 칩 = 캔들 데이터 없음 → 비활성. 데이터 추가되면 tf만 채우면 됨 (1분은 yfinance 제한으로 불가)
+// tf 없는 칩 = 캔들 데이터 없음 → 비활성 (1분은 yfinance 제한으로 불가)
 const TF_CHIPS: { label: string; tf?: Timeframe }[] = [
-  { label: '1분' }, { label: '5분', tf: '5m' }, { label: '15분' }, { label: '30분' },
-  { label: '1시간', tf: '1h' }, { label: '4시간', tf: '4h' }, { label: '1일' }, { label: '1주' },
+  { label: '1분' }, { label: '5분', tf: '5m' }, { label: '15분', tf: '15m' }, { label: '30분', tf: '30m' },
+  { label: '1시간', tf: '1h' }, { label: '4시간', tf: '4h' }, { label: '1일', tf: '1d' }, { label: '1주', tf: '1w' },
 ]
 
 export default function CustomStyle() {
