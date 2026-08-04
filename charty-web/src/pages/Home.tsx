@@ -68,12 +68,30 @@ export default function Home() {
     loadNews().then(setNews).catch(() => setNews(null))
   }, [])
 
-  // 시장 현황 — econ.json 최신 2개 값으로 게이지·핀 구성 (미국 데이터만 있음)
+  // 시장 현황 — econ.json 최신 2개 값으로 구성. 해외=미국 지표 게이지·핀, 국내=코스피·코스닥·환율 시세
   const market = useMemo(() => {
     if (!econ) return null
     const pair = (id: string) => {
       const d = econ.find((e) => e.id === id)?.data ?? []
       return d.length >= 2 ? { cur: d[d.length - 1][1], prev: d[d.length - 2][1] } : null
+    }
+    if (region === 'kr') {
+      const kospi = pair('KOSPI')
+      const kosdaq = pair('KOSDAQ')
+      const krw = pair('KRW')
+      if (!kospi || !kosdaq || !krw) return null
+      const num = (v: number) => Math.round(v).toLocaleString()
+      return {
+        moodDesc:
+          `코스피는 지난주보다 ${kospi.cur > kospi.prev ? '오르는' : '내리는'} 중(${num(kospi.prev)}→${num(kospi.cur)}), ` +
+          `코스닥은 ${kosdaq.cur > kosdaq.prev ? '상승' : '하락'} 흐름이에요. 원/달러는 ₩${num(krw.cur)} 수준이에요.`,
+        gauges: [] as never[],
+        pins: [
+          { label: '코스피', value: num(kospi.cur), arrow: arrowOf(kospi.cur, kospi.prev, 0.5) },
+          { label: '코스닥', value: num(kosdaq.cur), arrow: arrowOf(kosdaq.cur, kosdaq.prev, 0.5) },
+          { label: '원/달러', value: '₩' + num(krw.cur), arrow: arrowOf(krw.cur, krw.prev, 0.5) },
+        ],
+      }
     }
     const vix = pair('VIX')
     const fng = pair('FNG')
@@ -107,7 +125,7 @@ export default function Home() {
         { label: 'VIX', value: vix.cur.toFixed(1), arrow: arrowOf(vix.cur, vix.prev, 0.05) },
       ],
     }
-  }, [econ])
+  }, [econ, region])
 
   // 진행중 시뮬이 있으면 캔들을 다시 로드해 현재 평가액 계산
   useEffect(() => {
@@ -232,7 +250,16 @@ export default function Home() {
 
       {market && (
         <>
-          <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>시장 현황</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 -2px' }}>
+            <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: 0 }}>시장 현황</h2>
+            <div className="seg">
+              {(['kr', 'us'] as const).map((r) => (
+                <button key={r} className={region === r ? 'active' : ''} onClick={() => setRegion(r)}>
+                  {r === 'kr' ? '국내' : '해외'}
+                </button>
+              ))}
+            </div>
+          </div>
           <section className="card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -240,6 +267,7 @@ export default function Home() {
                 <div className="dim" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>{market.moodDesc}</div>
               </div>
             </div>
+            {market.gauges.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
               {market.gauges.map((g) => (
                 <div key={g.name} style={{ border: '1px solid var(--hairline)', borderRadius: 12, padding: '10px 12px' }}>
@@ -257,6 +285,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            )}
             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
               {market.pins.map((p) => (
                 <div key={p.label} style={{ flex: 1, border: '1px solid var(--hairline)', borderRadius: 10, padding: '7px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -273,16 +302,7 @@ export default function Home() {
 
       {news && news[region].length > 0 && (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 -2px' }}>
-            <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: 0 }}>주요 뉴스</h2>
-            <div className="seg">
-              {(['kr', 'us'] as const).map((r) => (
-                <button key={r} className={region === r ? 'active' : ''} onClick={() => setRegion(r)}>
-                  {r === 'kr' ? '국내' : '해외'}
-                </button>
-              ))}
-            </div>
-          </div>
+          <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>주요 뉴스</h2>
           <section className="card" style={{ padding: '4px 16px', gap: 0 }}>
             {news[region].slice(0, newsMore ? undefined : 4).map((nw, i, arr) => (
               <a

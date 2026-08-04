@@ -159,6 +159,9 @@ econ = [
     {"id": "GOLD", "label": "금 선물 (온스)", "unit": "$", "data": weekly("GC=F")},
     {"id": "JPY", "label": "엔/달러", "unit": "¥", "data": weekly("JPY=X")},
     {"id": "WTI", "label": "WTI 유가", "unit": "$", "data": weekly("CL=F")},
+    {"id": "KOSPI", "label": "코스피", "unit": "", "data": weekly("^KS11")},
+    {"id": "KOSDAQ", "label": "코스닥", "unit": "", "data": weekly("^KQ11")},
+    {"id": "KRW", "label": "원/달러", "unit": "₩", "data": weekly("KRW=X")},
     {"id": "FNG", "label": "공포·탐욕지수", "unit": "", "data": fng_pts},  # CNN, 최근 ~3년만 제공
     # ponytail: FOMC 점도표(SEP 금리 전망)는 과거 시점별 vintage가 필요해 ALFRED 연동 때 추가
 ]
@@ -204,8 +207,11 @@ def gdelt_week(start):
          "enddatetime": (start + pd.Timedelta(days=7)).strftime("%Y%m%d000000")}
     for _ in range(3):
         try:
-            arts = requests.get("https://api.gdeltproject.org/api/v2/doc/doc",
-                                params=p, timeout=30).json().get("articles", [])
+            r = requests.get("https://api.gdeltproject.org/api/v2/doc/doc", params=p, timeout=30)
+            if r.status_code == 429:  # 스로틀 — 길게 쉬고 재시도
+                time.sleep(30)
+                continue
+            arts = r.json().get("articles", [])
             out, seen = [], set()
             for a in arts:
                 title = a.get("title", "").strip()
@@ -230,7 +236,7 @@ archive = old
 while week < now:
     archive += gdelt_week(week)
     week += pd.Timedelta(days=7)
-    time.sleep(5.5)  # GDELT 제한: 5초당 1요청 (~470주 최초 실행 시 45분쯤 걸림)
+    time.sleep(7)  # GDELT 제한(5초당 1요청)에 여유를 둠 — 최초 실행 ~1시간
 archive.sort(key=lambda p: p[0])
 (OUT / "news-archive.json").write_text(
     json.dumps(archive, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
