@@ -37,8 +37,8 @@ def save(name, text):
         try:
             requests.put(
                 f"{SUPABASE_URL}/storage/v1/object/data/{name}", data=text.encode("utf-8"),
-                headers={"Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json",
-                         "x-upsert": "true", "cache-control": "max-age=3600"},
+                headers={"Authorization": f"Bearer {SUPABASE_KEY}", "apikey": SUPABASE_KEY,  # sb_secret 키는 JWT가 아니라 apikey 헤더 필수
+                         "Content-Type": "application/json", "x-upsert": "true", "cache-control": "max-age=3600"},
                 timeout=60,
             ).raise_for_status()
             return
