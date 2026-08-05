@@ -25,6 +25,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 if SUPABASE_URL and not SUPABASE_KEY:  # 반쪽 설정(시크릿 누락·오타)은 첫 업로드에서 불투명하게 죽음 — 즉시 명확하게
     raise SystemExit("SUPABASE_URL set but SUPABASE_SERVICE_KEY missing")
+print("storage upload:", "ON" if SUPABASE_URL else "OFF (SUPABASE_URL 미설정 — 로컬 저장만)")
 
 
 def save(name, text):
