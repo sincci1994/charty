@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ActiveSim, Candle, CustomStyle, Side, SimRecord, Style } from './types'
-import { STYLES, barsFor, loadCandles, loadTickers, pickRange } from './lib/data'
-import { equity, fillOrders, forceCloseAll, validateOrder } from './lib/engine'
+import { START_BALANCE, STYLES, barsFor, loadCandles, loadTickers, pickRange } from './lib/data'
+import { fillOrders, forceCloseAll, validateOrder } from './lib/engine'
 
 interface State {
   balance: number
@@ -18,7 +18,7 @@ interface State {
   deleteCustom: (id: string) => void
   resume: () => Promise<void>
   nextCandle: () => void
-  placeOrder: (side: Side, price: number, qty: number, reasons?: string[]) => string | null
+  placeOrder: (side: Side, price: number, qty: number) => string | null
   cancelOrder: (id: string) => void
   endNow: () => void
   discardSim: () => void
@@ -29,7 +29,7 @@ interface State {
 export const useStore = create<State>()(
   persist(
     (set, get) => ({
-      balance: 1_000_000,
+      balance: START_BALANCE,
       activeSim: null,
       records: [],
       customs: [],
@@ -92,13 +92,13 @@ export const useStore = create<State>()(
         set({ activeSim: sim })
       },
 
-      placeOrder: (side, price, qty, reasons) => {
+      placeOrder: (side, price, qty) => {
         const { activeSim } = get()
         if (!activeSim || activeSim.done) return '진행중인 시뮬레이션이 없습니다'
         const err = validateOrder(activeSim, side, price, qty)
         if (err) return err
         const sim = structuredClone(activeSim)
-        sim.openOrders.push({ id: crypto.randomUUID(), side, price, qty, reasons })
+        sim.openOrders.push({ id: crypto.randomUUID(), side, price, qty })
         set({ activeSim: sim })
         return null
       },
@@ -137,11 +137,12 @@ export const useStore = create<State>()(
           tradeCount: activeSim.trades.length,
           emotion,
           memo,
+          trades: activeSim.trades,
         }
         set({ balance: activeSim.cash, records: [record, ...records], activeSim: null, candles: [] })
       },
 
-      resetAll: () => set({ balance: 1_000_000, activeSim: null, records: [], candles: [] }),
+      resetAll: () => set({ balance: START_BALANCE, activeSim: null, records: [], candles: [] }),
     }),
     {
       name: 'charty',
@@ -150,13 +151,8 @@ export const useStore = create<State>()(
   ),
 )
 
-// 현재 시점 총자산 (선택자 헬퍼)
-export function currentEquity(sim: ActiveSim, candles: Candle[]): number {
-  const price = candles[sim.cursor]?.c ?? 0
-  return equity(sim, price)
-}
-
 // 시뮬레이션 진행률 % (0~100)
 export function simProgress(sim: ActiveSim): number {
-  return Math.round(((sim.cursor - sim.startIndex) / (sim.endIndex - sim.startIndex)) * 100)
+  const total = sim.endIndex - sim.startIndex
+  return total ? Math.round(((sim.cursor - sim.startIndex) / total) * 100) : 100
 }

@@ -2,8 +2,6 @@ export type Timeframe = '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w'
 
 export interface EconIndicator {
   id: string
-  label: string
-  unit: string
   data: [number, number][] // [발표일 근사 ts, 값] 오름차순
 }
 
@@ -44,7 +42,6 @@ export interface Order {
   side: Side
   price: number
   qty: number
-  reasons?: string[] // 매매 이유 (선택)
 }
 
 export interface Position {
@@ -59,7 +56,6 @@ export interface Trade {
   price: number
   qty: number
   pnl?: number
-  reasons?: string[]
 }
 
 export interface ActiveSim {
@@ -91,4 +87,5 @@ export interface SimRecord {
   tradeCount: number
   emotion: string
   memo: string
+  trades?: Trade[] // optional: 도입 이전 기록엔 없음
 }

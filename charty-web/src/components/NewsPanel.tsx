@@ -1,16 +1,16 @@
 import { useState } from 'react'
+import { polyline } from './AssetChart'
 import type { Headline } from '../lib/data'
 import type { EconIndicator } from '../types'
 
 // 클로드 디자인 "Simulation News.dc.html" 이식 — 시장 심리 대시보드
 // 화살표 색은 상승/하락 가치판단 없는 warm/cool (손익 green/red와 구분)
-export const WARM = '#f5a623'
-export const COOL = '#1fb6ff'
+const WARM = '#f5a623'
+const COOL = '#1fb6ff'
 const C_CPI = '#3d5cff'
 const C_PCE = '#1fb6ff'
 const C_PPI = '#9b2ff8'
 const W = 326 // 차트 viewBox 폭 (디자인 기준)
-const DAY = 86400
 
 const last = (a: number[]) => a[a.length - 1]
 const prv = (a: number[]) => a[a.length - 2]
@@ -34,17 +34,20 @@ export function zoneOf(v: number) {
   return { z: '공포', c: 'var(--red)', bg: 'rgba(244,67,54,0.14)' }
 }
 
-// 폴리라인 path + 좌표 함수 (패딩 5, 디자인의 line()과 동일)
-function line(vals: number[], w: number, h: number, mn: number, mx: number) {
-  const p = 5
-  const n = vals.length
-  const x = (i: number) => p + (i / (n - 1)) * (w - 2 * p)
-  const y = (v: number) => p + (1 - (v - mn) / (mx - mn || 1)) * (h - 2 * p)
-  return {
-    d: vals.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' '),
-    lx: x(n - 1),
-    ly: y(vals[n - 1]),
-  }
+// 요약 핀 타일 줄 — 홈 '시장 현황'과 공유
+export function Pins({ items }: { items: { label: string; value: string; tag: string; tagColor: string }[] }) {
+  return (
+    <div className="num" style={{ display: 'flex', gap: 6 }}>
+      {items.map((s) => (
+        <div key={s.label} className="card" style={{ flex: 1, borderRadius: 10, padding: '7px 4px', alignItems: 'center', gap: 2 }}>
+          <span className="dim" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{s.label}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
+            {s.value}<span style={{ fontSize: 9, fontWeight: 600, color: s.tagColor }}>{s.tag}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 interface CardProps {
@@ -105,7 +108,7 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
   }
   const isNew = (id: string) => {
     const pts = econ.find((e) => e.id === id)?.data.filter((p) => p[0] < nowTs) ?? []
-    return pts.length > 0 && nowTs - pts[pts.length - 1][0] < 7 * DAY
+    return pts.length > 0 && nowTs - pts[pts.length - 1][0] < 7 * 86400
   }
   const H = (k: string) => (exp === k ? 110 : 56)
   const toggle = (k: string) => () => setExp(exp === k ? null : k)
@@ -137,7 +140,7 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
   const vH = H('vix')
   const vmn = Math.min(...vix) - 1.5
   const vmx = Math.max(...vix) + 1.5
-  const vL = line(vix, W, vH, vmn, vmx)
+  const vL = polyline(vix, W, vH, vmn, vmx)
   const va = arrowOf(last(vix), prv(vix), 0.05)
   const vixPos = Math.max(2, Math.min(98, ((last(vix) - 10) / 30) * 100))
 
@@ -156,9 +159,9 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
   const all3 = [...cpi, ...pce, ...ppi]
   const imn = Math.min(...all3) - 0.4
   const imx = Math.max(...all3) + 0.4
-  const dCpi = line(cpi, W, iH, imn, imx)
-  const dPce = line(pce, W, iH, imn, imx)
-  const dPpi = line(ppi, W, iH, imn, imx)
+  const dCpi = polyline(cpi, W, iH, imn, imx)
+  const dPce = polyline(pce, W, iH, imn, imx)
+  const dPpi = polyline(ppi, W, iH, imn, imx)
   const inflRows = [
     { name: 'CPI', color: C_CPI, arr: cpi },
     { name: 'PCE', color: C_PCE, arr: pce },
@@ -171,7 +174,7 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
   // ── 고용 (실업률 라인 + NFP 바) ──
   const eH = H('emp')
   const HALF = 150
-  const uL = line(un, HALF, eH, Math.min(...un) - 0.15, Math.max(...un) + 0.15)
+  const uL = polyline(un, HALF, eH, Math.min(...un) - 0.15, Math.max(...un) + 0.15)
   const maxN = Math.max(...nf.map(Math.abs), 1)
   const slot = 144 / (nf.length - 1)
   const bars = nf
@@ -188,7 +191,7 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
   const mH = H('m2')
   const mmn = Math.min(...m2, 0) - 0.5
   const mmx = Math.max(...m2) + 0.5
-  const mL = line(m2, W, mH, mmn, mmx)
+  const mL = polyline(m2, W, mH, mmn, mmx)
   const zy = 5 + (1 - (0 - mmn) / (mmx - mmn)) * (mH - 10)
   const mA = arrowOf(last(m2), prv(m2), 0.05)
   const signed = (v: number) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
@@ -199,7 +202,7 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
     if (arr.length < 2) return []
     const chg = ((last(arr) - prv(arr)) / prv(arr)) * 100
     const color = chg >= 0 !== invert ? 'var(--green)' : 'var(--red)'
-    const L = line(arr, 132, 30, Math.min(...arr), Math.max(...arr))
+    const L = polyline(arr, 132, 30, Math.min(...arr), Math.max(...arr))
     return [{ name, val: fmt(last(arr)), chg: (chg >= 0 ? '+' : '') + chg.toFixed(1) + '%', color, ...L }]
   })
 
@@ -207,16 +210,7 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
 
   return (
     <div className="num" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 6 }}>
-        {summary.map((s) => (
-          <div key={s.label} className="card" style={{ flex: 1, borderRadius: 10, padding: '7px 4px', alignItems: 'center', gap: 2 }}>
-            <span className="dim" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{s.label}</span>
-            <span style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
-              {s.value}<span style={{ fontSize: 9, fontWeight: 600, color: s.tagColor }}>{s.tag}</span>
-            </span>
-          </div>
-        ))}
-      </div>
+      <Pins items={summary} />
 
       {headlines && (
         <div className="card" style={{ borderRadius: 14, padding: '13px 14px', gap: 0 }}>
@@ -306,20 +300,6 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
           {exp === 'rate' && <AxisLabels h={rH} maxL={rmx.toFixed(1) + '%'} minL="0%" />}
         </svg>
         <XLabels labels={['-3년', '-2년', '-1년', '최근']} />
-        <div style={{ borderTop: '1px dashed var(--hairline)', marginTop: 11, paddingTop: 9, opacity: 0.65 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, fontWeight: 600 }}>FOMC 금리 전망 <span className="dim" style={{ fontWeight: 400 }}>점도표 중간값</span></span>
-            <span className="dim" style={{ fontSize: 9, fontWeight: 600, border: '1px dashed var(--hairline)', borderRadius: 999, padding: '2px 7px' }}>데이터 연동 예정</span>
-          </div>
-          <svg width="100%" viewBox="0 0 326 46" style={{ display: 'block', marginTop: 6 }}>
-            <path d="M14 12 L112 20 L210 28 L308 36" fill="none" stroke="var(--dim)" strokeWidth="1.2" strokeDasharray="3 3" />
-            <circle cx="14" cy="12" r="3.5" fill="var(--accent)" />
-            <circle cx="112" cy="20" r="3.5" fill="none" stroke="var(--dim)" strokeWidth="1.2" />
-            <circle cx="210" cy="28" r="3.5" fill="none" stroke="var(--dim)" strokeWidth="1.2" />
-            <circle cx="308" cy="36" r="3.5" fill="none" stroke="var(--dim)" strokeWidth="1.2" />
-          </svg>
-          <XLabels labels={['현재', '+6개월', '+1년', '+2년']} />
-        </div>
       </Card>
 
       <Card

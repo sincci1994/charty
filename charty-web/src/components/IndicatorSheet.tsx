@@ -17,7 +17,7 @@ interface ParamSpec {
   label: string
   min: number
   max: number
-  float?: boolean
+  step?: number // 미지정 = 1 (정수)
   color?: string
 }
 
@@ -39,7 +39,7 @@ const ROWS: { key: keyof IndicatorShow; name: string; desc: (c: IndCfg) => strin
     desc: (c) => `SMA ${c.bolP} ± ${c.bolK}σ`,
     params: [
       { key: 'bolP', label: '기간', min: 5, max: 200 },
-      { key: 'bolK', label: '표준편차 σ', min: 0.5, max: 5, float: true },
+      { key: 'bolK', label: '표준편차 σ', min: 0.5, max: 5, step: 0.5 },
     ],
   },
   {
@@ -54,24 +54,22 @@ const ROWS: { key: keyof IndicatorShow; name: string; desc: (c: IndCfg) => strin
 interface Props {
   show: IndicatorShow
   cfg: IndCfg
-  open: boolean
   onShow: (s: IndicatorShow) => void
   onCfg: (c: IndCfg) => void
   onClose: () => void
 }
 
-export default function IndicatorSheet({ show, cfg, open, onShow, onCfg, onClose }: Props) {
+// 열릴 때만 마운트됨
+export default function IndicatorSheet({ show, cfg, onShow, onCfg, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
-    const d = ref.current
-    if (!d) return
-    if (open && !d.open) d.showModal()
-    else if (!open && d.open) d.close()
-  }, [open])
+    ref.current?.showModal()
+  }, [])
 
   const setParam = (p: ParamSpec, raw: string) => {
-    let v = p.float ? Number(raw) : Math.round(Number(raw))
+    const st = p.step ?? 1
+    let v = Math.round(Number(raw) / st) * st
     if (!Number.isFinite(v) || v === 0) v = p.min
     onCfg({ ...cfg, [p.key]: Math.min(p.max, Math.max(p.min, v)) })
   }
@@ -115,7 +113,7 @@ export default function IndicatorSheet({ show, cfg, open, onShow, onCfg, onClose
                       value={cfg[p.key]}
                       min={p.min}
                       max={p.max}
-                      step={p.float ? 0.5 : 1}
+                      step={p.step ?? 1}
                       onChange={(e) => setParam(p, e.target.value)}
                     />
                   </label>

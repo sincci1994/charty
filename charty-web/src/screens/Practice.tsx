@@ -1,9 +1,9 @@
 import { useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNav } from '../lib/nav'
 import { simProgress, useStore } from '../store'
 
 export default function Practice() {
-  const nav = useNavigate()
+  const nav = useNav()
   const { activeSim, endNow } = useStore()
   const dialogRef = useRef<HTMLDialogElement>(null)
 
@@ -51,7 +51,7 @@ export default function Practice() {
             캔들을 하나씩 직접 생성하며 흐름을 예측하고 매매 판단을 훈련합니다.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14, fontSize: 13, letterSpacing: '-0.1px' }}>
-            <div>지정가 / 감정 / 이유 기록 포함</div>
+            <div>지정가 주문 / 감정 기록 포함</div>
             <div>실전감 + 회고 훈련</div>
           </div>
           {activeSim ? (

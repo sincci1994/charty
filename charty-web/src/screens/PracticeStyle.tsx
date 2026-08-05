@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNav } from '../lib/nav'
 import type { Style } from '../types'
-import { STYLES, TF_LABELS, barsFor, estTime } from '../lib/data'
+import { STYLES, TF, barsFor, estTime } from '../lib/data'
 import { useStore } from '../store'
 
 export default function PracticeStyle() {
-  const nav = useNavigate()
+  const nav = useNav()
   const { activeSim, startSim, customs } = useStore()
   const [loading, setLoading] = useState(false)
   const [sel, setSel] = useState<string | null>(null)
@@ -46,7 +46,7 @@ export default function PracticeStyle() {
             <div>
               <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.2px' }}>{STYLES[key].label}</div>
               <div className="dim" style={{ fontSize: 13, marginTop: 3 }}>
-                거래 기간 {STYLES[key].period} · 차트 간격 {STYLES[key].interval} · {estTime(STYLES[key].bars)} 소요
+                거래 기간 {STYLES[key].period} · 차트 간격 {TF[STYLES[key].tf].label} · {estTime(STYLES[key].bars)} 소요
               </div>
             </div>
             <div className="radio">
@@ -66,7 +66,7 @@ export default function PracticeStyle() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.2px' }}>{c.name}</div>
               <div className="dim" style={{ fontSize: 13, marginTop: 3 }}>
-                거래 기간 {c.periodValue}{c.periodUnit} · 차트 간격 {TF_LABELS[c.tf]} · {estTime(barsFor(c))} 소요
+                거래 기간 {c.periodValue}{c.periodUnit} · 차트 간격 {TF[c.tf].label} · {estTime(barsFor(c))} 소요
               </div>
             </div>
             <button

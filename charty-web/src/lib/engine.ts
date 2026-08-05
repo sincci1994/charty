@@ -31,7 +31,7 @@ function execute(sim: ActiveSim, o: Order, ts: number, price: number) {
     if (sim.cash < cost) return // 체결 시점 잔고 부족 → 주문 소멸
     sim.cash -= cost
     mergePosition(sim, side === 'OPEN_LONG' ? 'LONG' : 'SHORT', qty, price)
-    sim.trades.push({ ts, side, price, qty, reasons: o.reasons })
+    sim.trades.push({ ts, side, price, qty })
   } else {
     const key = side === 'CLOSE_LONG' ? 'LONG' : 'SHORT'
     const pos = sim.positions[key]
@@ -39,11 +39,11 @@ function execute(sim: ActiveSim, o: Order, ts: number, price: number) {
     const q = Math.min(qty, pos.qty)
     if (key === 'LONG') {
       sim.cash += price * q
-      sim.trades.push({ ts, side, price, qty: q, pnl: (price - pos.avgPrice) * q, reasons: o.reasons })
+      sim.trades.push({ ts, side, price, qty: q, pnl: (price - pos.avgPrice) * q })
     } else {
       // 증거금(avgPrice*q) 반환 + 손익(avgPrice - price)*q
       sim.cash += (2 * pos.avgPrice - price) * q
-      sim.trades.push({ ts, side, price, qty: q, pnl: (pos.avgPrice - price) * q, reasons: o.reasons })
+      sim.trades.push({ ts, side, price, qty: q, pnl: (pos.avgPrice - price) * q })
     }
     shrinkPosition(sim, key, q)
   }

@@ -95,8 +95,6 @@ h2 { font-size: 22px; }
   gap: 10px;
 }
 
-.big-number { font-size: 28px; font-weight: 700; }
-
 /* 하단 탭바 — 플로팅 알약형 (Home v3) */
 .tabbar {
   position: fixed;
@@ -145,11 +143,6 @@ button {
   cursor: pointer;
 }
 button:disabled { opacity: 0.5; }
-
-.primary-btn { background: var(--accent); font-weight: 600; }
-.primary-btn.big { padding: 16px; font-size: 16px; width: 100%; }
-.ghost-btn { background: transparent; color: var(--dim); border: 1px solid var(--card2); padding: 6px 10px; font-size: 12px; }
-.danger-btn { background: var(--card); color: var(--red); }
 
 .pulse { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse {
@@ -225,7 +218,6 @@ button:disabled { opacity: 0.5; }
   gap: 5px;
 }
 .sim-tab.active { color: var(--text); font-weight: 600; border-color: var(--accent); }
-.sim-tab.off { opacity: 0.55; }
 .badge { font-size: 9px; font-weight: 600; background: var(--card2); border-radius: 999px; padding: 2px 6px; }
 .end-btn {
   font-size: 11px;

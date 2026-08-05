@@ -1,18 +1,19 @@
-import counts from '../../public/data/candle-counts.json'
 import type { Candle, CustomStyle, EconIndicator, NewsData, Style, Timeframe, Unit } from '../types'
 
-export const STYLES: Record<Style, { label: string; period: string; interval: string; tf: Timeframe; bars: number }> = {
-  SCALP: { label: '단타', period: '1일', interval: '5분', tf: '5m', bars: 78 },
-  SWING: { label: '스윙', period: '14일', interval: '1시간', tf: '1h', bars: 98 },
-  LONG: { label: '장기투자', period: '60일', interval: '4시간', tf: '4h', bars: 120 },
+export const START_BALANCE = 1_000_000
+
+export const STYLES: Record<Style, { label: string; period: string; tf: Timeframe; bars: number }> = {
+  SCALP: { label: '단타', period: '1일', tf: '5m', bars: 78 },
+  SWING: { label: '스윙', period: '14일', tf: '1h', bars: 98 },
+  LONG: { label: '장기투자', period: '60일', tf: '4h', bars: 120 },
 }
 
-export const TF_LABELS: Record<Timeframe, string> = {
-  '5m': '5분', '15m': '15분', '30m': '30분', '1h': '1시간', '4h': '4시간', '1d': '1일', '1w': '1주',
-}
+// 프리셋 키면 프리셋 라벨, 아니면 시작 시점 스냅샷 라벨(커스텀)
+export const styleLabel = (style: string, snap?: string) => STYLES[style as Style]?.label ?? snap ?? '커스텀'
 
-export const TF_SEC: Record<Timeframe, number> = {
-  '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800,
+export const TF: Record<Timeframe, { label: string; sec: number }> = {
+  '5m': { label: '5분', sec: 300 }, '15m': { label: '15분', sec: 900 }, '30m': { label: '30분', sec: 1800 },
+  '1h': { label: '1시간', sec: 3600 }, '4h': { label: '4시간', sec: 14400 }, '1d': { label: '1일', sec: 86400 }, '1w': { label: '1주', sec: 604800 },
 }
 
 // 버킷 시작(floor(ts/tfSec)) 기준 OHLCV 집계 — src는 ts 오름차순 가정, 마지막 버킷은 부분 캔들일 수 있음
@@ -40,10 +41,24 @@ const BARS_PER_DAY: Record<Timeframe, number> = { '5m': 78, '15m': 26, '30m': 13
 export const EMA_WARMUP = 200 // EMA200이 유효해지는 데 필요한 앞쪽 캔들 수
 export const LOOKBACK = 60 // 시작 시 차트에 미리 보여줄 과거 캔들 수
 
-// 실측 최소 캔들 수(candle-counts.json — fetch-data.py가 생성) − pickRange 최소 여유
-export const MAX_BARS = Object.fromEntries(
-  Object.entries(counts).map(([tf, n]) => [tf, n - EMA_WARMUP - LOOKBACK]),
-) as Record<Timeframe, number>
+// 실측 최소 캔들 수(candle-counts.json — fetch-data.py가 생성) − pickRange 최소 여유.
+// 파이프라인이 매일 갱신하므로 빌드타임 import 대신 런타임 fetch (모듈 캐시로 1회만).
+// 15m/30m/4h은 파일 없이 기본 TF에서 리샘플하므로 개수도 나눗셈으로 파생 (floor라 약간 보수적)
+let maxBarsCache: Record<Timeframe, number> | null = null
+export async function loadMaxBars(): Promise<Record<Timeframe, number>> {
+  if (maxBarsCache) return maxBarsCache
+  const res = await fetch(base + 'candle-counts.json')
+  // Supabase 404는 JSON 에러 바디라 json()이 성공해버림 — NaN 캐시 방지 (실패 시 소비처가 MAX_CANDLES 폴백)
+  if (!res.ok) throw new Error(`candle-counts fetch failed: ${res.status}`)
+  const counts: Record<string, number> = await res.json()
+  const full = {
+    ...counts, '15m': Math.floor(counts['5m'] / 3), '30m': Math.floor(counts['5m'] / 6), '4h': Math.floor(counts['1h'] / 4),
+  }
+  maxBarsCache = Object.fromEntries(
+    Object.entries(full).map(([tf, n]) => [tf, n - EMA_WARMUP - LOOKBACK]),
+  ) as Record<Timeframe, number>
+  return maxBarsCache
+}
 export const MIN_BARS = 10
 
 export function barsFor(c: CustomStyle): number {
@@ -61,17 +76,24 @@ export function estTime(bars: number): string {
 export const fmtW = (v: number) =>
   `₩${v.toLocaleString(undefined, { maximumFractionDigits: Math.abs(v) < 1000 ? 2 : 0 })}`
 
-const base = import.meta.env.BASE_URL + 'data/'
+// Supabase Storage CDN 등 외부 데이터 소스 — 미설정 시 로컬 public/data 폴백 (dev·테스트)
+// replace: 끝 슬래시 유무 무관하게 동작 (Vercel 환경변수 오타 방지)
+const base = (process.env.NEXT_PUBLIC_DATA_URL ?? '/data').replace(/\/?$/, '/')
 
 export async function loadTickers(): Promise<string[]> {
   const res = await fetch(base + 'tickers.json')
   return res.json()
 }
 
+// 15m/30m/4h은 파일이 없음 — 기본 TF를 받아 리샘플 (기존 정적 파일도 같은 리샘플로 생성됐었음)
+const BASE_TF: Partial<Record<Timeframe, Timeframe>> = { '15m': '5m', '30m': '5m', '4h': '1h' }
+
 export async function loadCandles(symbol: string, tf: Timeframe): Promise<Candle[]> {
-  const res = await fetch(`${base}${symbol}_${tf}.json`)
+  const src = BASE_TF[tf]
+  const res = await fetch(`${base}${symbol}_${src ?? tf}.json`)
   const rows: number[][] = await res.json()
-  return rows.map(([ts, o, h, l, c, v]) => ({ ts, o, h, l, c, v }))
+  const candles = rows.map(([ts, o, h, l, c, v]) => ({ ts, o, h, l, c, v }))
+  return src ? resampleCandles(candles, TF[tf].sec) : candles
 }
 
 export async function loadEcon(): Promise<EconIndicator[]> {

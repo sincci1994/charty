@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNav } from '../lib/nav'
 import { useStore } from '../store'
-import { STYLES, fmtW } from '../lib/data'
-import type { Style } from '../types'
+import { fmtW, styleLabel } from '../lib/data'
 
 const EMOTIONS = [['😰', '불안함'], ['😬', '긴장됨'], ['😎', '자신감'], ['😢', '우울함'], ['😐', '무덤덤함']] as const
 
 export default function Review() {
-  const nav = useNavigate()
+  const nav = useNav()
   const { activeSim: sim, submitReview } = useStore()
   const [emotion, setEmotion] = useState('')
   const [memo, setMemo] = useState('')
@@ -40,7 +39,6 @@ export default function Review() {
 
   const pnl = sim.cash - sim.startBalance
   const pnlPct = (pnl / sim.startBalance) * 100
-  const styleLabel = STYLES[sim.style as Style]?.label ?? sim.styleLabel
 
   const submit = () => {
     if (!emotion) return
@@ -53,7 +51,7 @@ export default function Review() {
       <h2 style={{ padding: '12px 4px 0' }}>회고 작성</h2>
 
       <div className="card center">
-        <div className="dim small" style={{ fontSize: 13 }}>{sim.symbol} 연습 결과 · {styleLabel}</div>
+        <div className="dim small" style={{ fontSize: 13 }}>{sim.symbol} 연습 결과 · {styleLabel(sim.style, sim.styleLabel)}</div>
         <div className={`num ${pnl >= 0 ? 'green' : 'red'}`} style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.5px' }}>
           {pnl >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%
         </div>

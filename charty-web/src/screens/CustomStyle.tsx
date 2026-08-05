@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
+import { useNav } from '../lib/nav'
 import type { Timeframe, Unit } from '../types'
-import { MAX_BARS, MIN_BARS, barsFor, estTime } from '../lib/data'
+import { MIN_BARS, TF, barsFor, estTime, loadMaxBars } from '../lib/data'
 import { useStore } from '../store'
 
 const UNIT_MAX: Record<Unit, number> = { 분: 1440, 시간: 720, 일: 365, 주: 52, 개월: 24, 년: 5 }
@@ -9,13 +10,14 @@ const MAX_CANDLES = 2000 // UX 상한 — 데이터 상한(MAX_BARS)과 별개�
 const UNITS = Object.keys(UNIT_MAX) as Unit[]
 // tf 없는 칩 = 캔들 데이터 없음 → 비활성 (1분은 yfinance 제한으로 불가)
 const TF_CHIPS: { label: string; tf?: Timeframe }[] = [
-  { label: '1분' }, { label: '5분', tf: '5m' }, { label: '15분', tf: '15m' }, { label: '30분', tf: '30m' },
-  { label: '1시간', tf: '1h' }, { label: '4시간', tf: '4h' }, { label: '1일', tf: '1d' }, { label: '1주', tf: '1w' },
+  { label: '1분' },
+  ...(Object.entries(TF) as [Timeframe, { label: string }][]).map(([tf, { label }]) => ({ label, tf })),
 ]
 
 export default function CustomStyle() {
-  const nav = useNavigate()
-  const { id } = useParams()
+  const nav = useNav()
+  // optional catch-all([[...id]]) 파라미터 — /custom은 undefined, /custom/:id는 ['id']
+  const id = useParams<{ id?: string[] }>().id?.[0]
   const { customs, saveCustom, deleteCustom } = useStore()
   const editing = customs.find((c) => c.id === id)
 
@@ -24,13 +26,19 @@ export default function CustomStyle() {
   const [unit, setUnit] = useState<Unit | null>(editing?.periodUnit ?? null)
   const [tf, setTf] = useState<Timeframe | null>(editing?.tf ?? null)
 
+  // 데이터 상한(candle-counts) 로드 — 실패·로딩 중엔 MAX_CANDLES(UX 상한)만 적용, 최종 검증은 시뮬 시작 시 pickRange가 함
+  const [maxBars, setMaxBars] = useState<Record<Timeframe, number> | null>(null)
+  useEffect(() => {
+    loadMaxBars().then(setMaxBars).catch(() => {})
+  }, [])
+
   const period = parseInt(periodStr, 10)
   const max = unit ? UNIT_MAX[unit] : 0
   const over = !!unit && period > max
   const hasPeriod = !!unit && period >= 1 && !over
   const bars = hasPeriod && tf ? barsFor({ id: '', name, periodValue: period, periodUnit: unit, tf }) : 0
   const tooShort = bars > 0 && bars < MIN_BARS
-  const tooLong = !!tf && bars > Math.min(MAX_CANDLES, MAX_BARS[tf])
+  const tooLong = !!tf && bars > Math.min(MAX_CANDLES, maxBars?.[tf] ?? Infinity)
   const barsBad = tooShort || tooLong
   const canSet = name.trim() !== '' && hasPeriod && tf !== null && !barsBad
 

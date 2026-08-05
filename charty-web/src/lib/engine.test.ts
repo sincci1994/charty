@@ -58,16 +58,6 @@ describe('fillOrders', () => {
     expect(s.positions.LONG?.entries).toEqual([{ qty: 5, price: 100 }])
   })
 
-  it('매매 이유가 Order → Trade로 전달', () => {
-    const s = sim()
-    s.openOrders = [{ id: 'a', side: 'OPEN_LONG', price: 100, qty: 10, reasons: ['지지선 반등'] }]
-    fillOrders(s, candle(95, 105))
-    expect(s.trades.at(-1)?.reasons).toEqual(['지지선 반등'])
-    s.openOrders = [{ id: 'b', side: 'CLOSE_LONG', price: 120, qty: 10, reasons: ['수익 실현'] }]
-    fillOrders(s, candle(115, 125))
-    expect(s.trades.at(-1)?.reasons).toEqual(['수익 실현'])
-  })
-
   it('갭 체결: 시가가 지정가보다 유리하면 시가로 체결', () => {
     // 매수 갭다운 — 캔들 전체(80~90)가 지정가 100 아래여도 시가 82로 체결
     const s = sim()

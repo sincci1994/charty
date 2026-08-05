@@ -1,16 +1,14 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNav } from '../lib/nav'
 import AssetChart from '../components/AssetChart'
-import { STYLES, fmtW } from '../lib/data'
+import { START_BALANCE, fmtW, styleLabel } from '../lib/data'
 import { useStore } from '../store'
-import type { SimRecord, Style } from '../types'
+import type { SimRecord } from '../types'
 
-const START_BALANCE = 1_000_000
-
-const styleLabel = (r: SimRecord) => STYLES[r.style as Style]?.label ?? r.styleLabel ?? '커스텀'
+const label = (r: SimRecord) => styleLabel(r.style, r.styleLabel)
 
 export default function History() {
-  const nav = useNavigate()
+  const nav = useNav()
   const { records, balance } = useStore()
   const [filter, setFilter] = useState('전체')
   const [openId, setOpenId] = useState<string | null>(null)
@@ -41,8 +39,8 @@ export default function History() {
   const winRate = Math.round((records.filter((r) => r.pnlPct > 0).length / records.length) * 100)
   const avgPct = records.reduce((s, r) => s + r.pnlPct, 0) / records.length
 
-  const labels = ['전체', ...new Set(records.map(styleLabel))]
-  const shown = records.filter((r) => filter === '전체' || styleLabel(r) === filter)
+  const labels = ['전체', ...new Set(records.map(label))]
+  const shown = records.filter((r) => filter === '전체' || label(r) === filter)
 
   // 날짜별 그룹 (records는 최신순)
   const groups: { date: string; items: SimRecord[] }[] = []
@@ -85,7 +83,7 @@ export default function History() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.2px' }}>{r.symbol}</div>
-                    <div className="dim" style={{ fontSize: 12, marginTop: 3 }}>{styleLabel(r)}</div>
+                    <div className="dim" style={{ fontSize: 12, marginTop: 3 }}>{label(r)}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                     <div className={`num ${up ? 'green' : 'red'}`} style={{ fontSize: 16, fontWeight: 600 }}>

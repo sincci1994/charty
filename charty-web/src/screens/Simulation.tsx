@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNav } from '../lib/nav'
 import Chart, { BOL_COLOR, EMA_COLORS, type IndicatorShow, type PriceLineSpec } from '../components/Chart'
 import IndicatorSheet, { DEFAULT_CFG, type IndCfg } from '../components/IndicatorSheet'
 import NewsPanel from '../components/NewsPanel'
 import OrderSheet from '../components/OrderSheet'
-import { currentEquity, useStore } from '../store'
-import { LOOKBACK, STYLES, TF_SEC, bollinger, ema, fmtW, loadCandles, loadEcon, loadNewsArchive, resampleCandles, rsi } from '../lib/data'
+import { simProgress, useStore } from '../store'
+import { LOOKBACK, TF, bollinger, ema, fmtW, loadCandles, loadEcon, loadNewsArchive, resampleCandles, rsi, styleLabel } from '../lib/data'
+import { equity } from '../lib/engine'
 import type { Headline } from '../lib/data'
-import type { Candle, EconIndicator, Style, Timeframe } from '../types'
+import type { Candle, EconIndicator, Timeframe } from '../types'
 
-const TF_CHIPS: Timeframe[] = ['5m', '15m', '30m', '1h', '4h', '1d', '1w']
+const TF_CHIPS = Object.keys(TF) as Timeframe[]
 const IND_KEYS = ['ema', 'bol', 'rsi', 'vol'] as const
 // 종목 숨김(******) 유지 — 회사명이 든 헤드라인은 걸러냄 (ETF는 해당 없음)
 const LEAK_NAMES: Partial<Record<string, string>> = { AAPL: 'apple', NVDA: 'nvidia', TSLA: 'tesla', MSFT: 'microsoft' }
@@ -22,7 +23,7 @@ function progressText(pct: number) {
 }
 
 export default function Simulation() {
-  const nav = useNavigate()
+  const nav = useNav()
   const { activeSim: sim, candles, nextCandle, endNow, cancelOrder, resume } = useStore()
   const [show, setShow] = useState<IndicatorShow>({ ema: true, bol: false, rsi: false, vol: true })
   const [cfg, setCfg] = useState<IndCfg>(DEFAULT_CFG)
@@ -42,7 +43,7 @@ export default function Simulation() {
 
   useEffect(() => {
     if (!sim) nav('/practice', { replace: true })
-    else resume()
+    else resume().catch(() => nav('/practice', { replace: true })) // 캔들 로드 실패 시 무한 로딩 방지 — sim은 보존되므로 재진입=재시도
   }, [sim, nav, resume])
 
   // 포지션/미체결이 생기면 상태 카드를 자동으로 펼침 (수동 접기는 유지)
@@ -74,7 +75,7 @@ export default function Simulation() {
   const prevNowRef = useRef<number | null>(null)
   useEffect(() => {
     if (!sim || candles.length === 0 || !econ) return
-    const now = candles[sim.cursor].ts + TF_SEC[sim.timeframe]
+    const now = candles[sim.cursor].ts + TF[sim.timeframe].sec
     const prev = prevNowRef.current
     prevNowRef.current = now
     if (prev !== null && now > prev && econ.some((e) => e.data.some((p) => p[0] >= prev && p[0] < now)))
@@ -91,14 +92,7 @@ export default function Simulation() {
   }, [candles, cfg])
 
   const visible = useMemo(() => {
-    if (!sim) {
-      return {
-        candles: [],
-        emas: { e1: [], e2: [], e3: [] },
-        bands: { upper: [], lower: [] },
-        rsi: [],
-      }
-    }
+    if (!sim) return null // !sim이면 아래 로딩 return이 먼저라 사용되지 않음
     const from = Math.max(0, sim.startIndex - LOOKBACK)
     const to = sim.cursor + 1
     const cut = (a: (number | null)[]) => a.slice(from, to)
@@ -115,12 +109,12 @@ export default function Simulation() {
   const effTf: Timeframe = viewTf ?? sim?.timeframe ?? '4h'
   const view = useMemo(() => {
     if (!sim || candles.length === 0 || effTf === sim.timeframe) return null // null → visible 사용
-    const cutoff = candles[sim.cursor].ts + TF_SEC[sim.timeframe]
+    const cutoff = candles[sim.cursor].ts + TF[sim.timeframe].sec
     const fromTs = candles[Math.max(0, sim.startIndex - LOOKBACK)].ts
     let src: Candle[]
-    if (TF_SEC[effTf] > TF_SEC[sim.timeframe]) {
+    if (TF[effTf].sec > TF[sim.timeframe].sec) {
       // 굵게 보기: 세션 캔들을 자른 뒤 리샘플 — 마지막 버킷은 부분 캔들(실전과 동일)
-      src = resampleCandles(candles.filter((c) => c.ts < cutoff), TF_SEC[effTf])
+      src = resampleCandles(candles.filter((c) => c.ts < cutoff), TF[effTf].sec)
     } else {
       // 잘게 보기: 해당 TF 파일에서 컷오프 이전만 — 컷오프가 세션 캔들 경계라 열린 캔들 없음
       const file = extra[effTf]
@@ -143,7 +137,7 @@ export default function Simulation() {
 
   const pickTf = (tf: Timeframe) => {
     if (!sim) return
-    if (tf === sim.timeframe || TF_SEC[tf] > TF_SEC[sim.timeframe]) return setViewTf(tf)
+    if (tf === sim.timeframe || TF[tf].sec > TF[sim.timeframe].sec) return setViewTf(tf)
     const cached = extra[tf]
     if (cached === 'missing') return
     if (cached) return setViewTf(tf)
@@ -163,15 +157,14 @@ export default function Simulation() {
 
   if (!sim || candles.length === 0) return <div className="page"><div className="empty">불러오는 중…</div></div>
 
-  const total = sim.endIndex - sim.startIndex
-  const pct = total > 0 ? Math.round(((sim.cursor - sim.startIndex) / total) * 100) : 100
+  const pct = simProgress(sim)
   const price = candles[sim.cursor].c
-  const nowTs = candles[sim.cursor].ts + TF_SEC[sim.timeframe] // 현재 캔들 마감 시각 = 시뮬의 '지금'
-  const eq = currentEquity(sim, candles)
+  const nowTs = candles[sim.cursor].ts + TF[sim.timeframe].sec // 현재 캔들 마감 시각 = 시뮬의 '지금'
+  const eq = equity(sim, price)
   const pnl = eq - sim.startBalance
   const pnlPct = (pnl / sim.startBalance) * 100
   const posCount = (sim.positions.LONG ? 1 : 0) + (sim.positions.SHORT ? 1 : 0)
-  const styleLabel = STYLES[sim.style as Style]?.label ?? sim.styleLabel
+  const chartData = (view ?? visible)!
 
   const lines: PriceLineSpec[] = []
   for (const k of ['LONG', 'SHORT'] as const) {
@@ -219,10 +212,10 @@ export default function Simulation() {
       </div>
 
       <div className="symbol-row">
-        <span className="dim small" style={{ whiteSpace: 'nowrap' }}>{sim.done ? `${sim.symbol} · ` : ''}{styleLabel} · {sim.timeframe}</span>
+        <span className="dim small" style={{ whiteSpace: 'nowrap' }}>{sim.done ? `${sim.symbol} · ` : ''}{styleLabel(sim.style, sim.styleLabel)} · {sim.timeframe}</span>
         <div className="tf-chips" style={tab === 'news' ? { visibility: 'hidden' } : undefined}>
           {TF_CHIPS.map((tf) => {
-            const missing = TF_SEC[tf] < TF_SEC[sim.timeframe] && extra[tf] === 'missing'
+            const missing = TF[tf].sec < TF[sim.timeframe].sec && extra[tf] === 'missing'
             return (
               <button
                 key={tf}
@@ -254,10 +247,10 @@ export default function Simulation() {
       ) : (
         <div style={{ position: 'relative' }}>
           <Chart
-            candles={(view ?? visible).candles}
-            emas={(view ?? visible).emas}
-            bands={(view ?? visible).bands}
-            rsi={(view ?? visible).rsi}
+            candles={chartData.candles}
+            emas={chartData.emas}
+            bands={chartData.bands}
+            rsi={chartData.rsi}
             show={show}
             lines={lines}
           />
@@ -377,24 +370,15 @@ export default function Simulation() {
               <button className="pill pill-short" style={{ flex: 1 }} onClick={() => setSheetDir('SHORT')}>Short</button>
             </div>
           </div>
-          <OrderSheet
-            sim={sim}
-            currentPrice={price}
-            dir={sheetDir ?? 'LONG'}
-            open={sheetDir !== null}
-            onClose={() => setSheetDir(null)}
-          />
+          {sheetDir && (
+            <OrderSheet sim={sim} currentPrice={price} dir={sheetDir} onClose={() => setSheetDir(null)} />
+          )}
         </>
       )}
 
-      <IndicatorSheet
-        show={show}
-        cfg={cfg}
-        open={indOpen}
-        onShow={setShow}
-        onCfg={setCfg}
-        onClose={() => setIndOpen(false)}
-      />
+      {indOpen && (
+        <IndicatorSheet show={show} cfg={cfg} onShow={setShow} onCfg={setCfg} onClose={() => setIndOpen(false)} />
+      )}
 
       {toast && (
         <div className="toast-wrap" key={toast.id}>

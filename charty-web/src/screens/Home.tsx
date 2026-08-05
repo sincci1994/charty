@@ -1,21 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNav } from '../lib/nav'
 import AssetChart from '../components/AssetChart'
-import { arrowOf, zoneOf } from '../components/NewsPanel'
-import { loadEcon, loadNews } from '../lib/data'
-import { currentEquity, simProgress, useStore } from '../store'
+import { Pins, arrowOf, zoneOf } from '../components/NewsPanel'
+import { START_BALANCE, fmtW, loadEcon, loadNews } from '../lib/data'
+import { equity } from '../lib/engine'
+import { simProgress, useStore } from '../store'
 import type { EconIndicator, NewsData, SimRecord } from '../types'
 
-const START_BALANCE = 1_000_000
+const PERIODS = { '1w': '1주', '1m': '1달', all: '전체' } as const
+type PeriodKey = keyof typeof PERIODS
 
-const PERIODS = [
-  { key: '1w', label: '1주' },
-  { key: '1m', label: '1달' },
-  { key: 'all', label: '전체' },
-] as const
-
-const won = (n: number) => '₩' + n.toLocaleString('ko-KR')
 const sign = (n: number) => (n > 0 ? '+' : n < 0 ? '-' : '')
+const pin = (label: string, value: string, a: { a: string; c: string }) => ({ label, value, tag: a.a, tagColor: a.c })
 
 const EYE_OPEN = 'M3 12 C3 12 6 6 12 6 C18 6 21 12 21 12 C21 12 18 18 12 18 C6 18 3 12 3 12 Z M12 9 A3 3 0 1 0 12 15 A3 3 0 1 0 12 9'
 const EYE_OFF = 'M3 3 L21 21 M10.5 10.6 A3 3 0 0 0 13.4 13.5 M7 7 C4.5 8.5 3 12 3 12 C3 12 6 18 12 18 C13.8 18 15.4 17.4 16.7 16.6 M12 6 C18 6 21 12 21 12 C21 12 20.4 13.2 19.3 14.5'
@@ -45,7 +41,7 @@ function streak(records: SimRecord[]): number {
 }
 
 // 기간 내 연습 종료 시점의 잔고 시계열 + 현재 자산
-function assetSeries(records: SimRecord[], period: (typeof PERIODS)[number]['key'], current: number): number[] {
+function assetSeries(records: SimRecord[], period: PeriodKey, current: number): number[] {
   const asc = [...records].sort((a, b) => a.endedAt - b.endedAt)
   const cutoff = period === 'all' ? 0 : Date.now() - (period === '1w' ? 7 : 30) * 86_400_000
   const base = asc.filter((r) => r.endedAt < cutoff).at(-1)?.endBalance ?? START_BALANCE
@@ -53,10 +49,10 @@ function assetSeries(records: SimRecord[], period: (typeof PERIODS)[number]['key
 }
 
 export default function Home() {
-  const nav = useNavigate()
+  const nav = useNav()
   const { balance, records, activeSim, candles, resume, discardSim } = useStore()
   const [hideAsset, setHideAsset] = useState(false)
-  const [period, setPeriod] = useState<(typeof PERIODS)[number]['key']>('1m')
+  const [period, setPeriod] = useState<PeriodKey>('1m')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [econ, setEcon] = useState<EconIndicator[] | null>(null)
   const [news, setNews] = useState<NewsData | null>(null)
@@ -87,9 +83,9 @@ export default function Home() {
           `코스닥은 ${kosdaq.cur > kosdaq.prev ? '상승' : '하락'} 흐름이에요. 원/달러는 ₩${num(krw.cur)} 수준이에요.`,
         gauges: [] as never[],
         pins: [
-          { label: '코스피', value: num(kospi.cur), arrow: arrowOf(kospi.cur, kospi.prev, 0.5) },
-          { label: '코스닥', value: num(kosdaq.cur), arrow: arrowOf(kosdaq.cur, kosdaq.prev, 0.5) },
-          { label: '원/달러', value: '₩' + num(krw.cur), arrow: arrowOf(krw.cur, krw.prev, 0.5) },
+          pin('코스피', num(kospi.cur), arrowOf(kospi.cur, kospi.prev, 0.5)),
+          pin('코스닥', num(kosdaq.cur), arrowOf(kosdaq.cur, kosdaq.prev, 0.5)),
+          pin('원/달러', '₩' + num(krw.cur), arrowOf(krw.cur, krw.prev, 0.5)),
         ],
       }
     }
@@ -119,10 +115,10 @@ export default function Home() {
         },
       ],
       pins: [
-        { label: '기준금리', value: ffr.cur.toFixed(2) + '%', arrow: arrowOf(ffr.cur, ffr.prev, 0.001) },
-        { label: 'CPI', value: cpi.cur.toFixed(1) + '%', arrow: arrowOf(cpi.cur, cpi.prev, 0.05) },
-        { label: '실업률', value: un.cur.toFixed(1) + '%', arrow: arrowOf(un.cur, un.prev, 0.05) },
-        { label: 'VIX', value: vix.cur.toFixed(1), arrow: arrowOf(vix.cur, vix.prev, 0.05) },
+        pin('기준금리', ffr.cur.toFixed(2) + '%', arrowOf(ffr.cur, ffr.prev, 0.001)),
+        pin('CPI', cpi.cur.toFixed(1) + '%', arrowOf(cpi.cur, cpi.prev, 0.05)),
+        pin('실업률', un.cur.toFixed(1) + '%', arrowOf(un.cur, un.prev, 0.05)),
+        pin('VIX', vix.cur.toFixed(1), arrowOf(vix.cur, vix.prev, 0.05)),
       ],
     }
   }, [econ, region])
@@ -132,7 +128,7 @@ export default function Home() {
     resume()
   }, [resume])
 
-  const totalAsset = Math.round(activeSim && candles.length ? currentEquity(activeSim, candles) : balance)
+  const totalAsset = Math.round(activeSim && candles.length ? equity(activeSim, candles[activeSim.cursor].c) : balance)
   const delta = totalAsset - START_BALANCE
   const deltaRate = (delta / START_BALANCE) * 100
   const up = delta > 0
@@ -145,7 +141,7 @@ export default function Home() {
   const streakDays = streak(records)
   const profitTint = profitRate === null || profitRate === 0 ? '' : profitRate > 0 ? 'tint-up' : 'tint-down'
   const progress = activeSim ? simProgress(activeSim) : 0
-  const periodLabel = PERIODS.find((p) => p.key === period)!.label
+  const periodLabel = PERIODS[period]
 
   return (
     <div className="page">
@@ -170,13 +166,13 @@ export default function Home() {
           </button>
         </div>
         <div className="num" style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.374px' }}>
-          {hideAsset ? '₩ ******' : won(totalAsset)}
+          {hideAsset ? '₩ ******' : fmtW(totalAsset)}
         </div>
         {!hideAsset && (
           <div className={`num ${up ? 'up' : down ? 'down' : 'sub'}`} style={{ fontSize: 14, fontWeight: 500 }}>
             {newUser
-              ? `시작 자산 ${won(START_BALANCE)}`
-              : `${sign(delta)}${won(Math.abs(delta))} (${sign(deltaRate)}${Math.abs(deltaRate).toFixed(1)}%)`}
+              ? `시작 자산 ${fmtW(START_BALANCE)}`
+              : `${sign(delta)}${fmtW(Math.abs(delta))} (${sign(deltaRate)}${Math.abs(deltaRate).toFixed(1)}%)`}
           </div>
         )}
       </section>
@@ -219,9 +215,9 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.2px' }}>자산 추이</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {PERIODS.map((p) => (
-              <button key={p.key} className={`chip ${p.key === period ? 'active' : ''}`} onClick={() => setPeriod(p.key)}>
-                {p.label}
+            {(Object.keys(PERIODS) as PeriodKey[]).map((k) => (
+              <button key={k} className={`chip ${k === period ? 'active' : ''}`} onClick={() => setPeriod(k)}>
+                {PERIODS[k]}
               </button>
             ))}
           </div>
@@ -286,15 +282,8 @@ export default function Home() {
               ))}
             </div>
             )}
-            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-              {market.pins.map((p) => (
-                <div key={p.label} style={{ flex: 1, border: '1px solid var(--hairline)', borderRadius: 10, padding: '7px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <span className="dim" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{p.label}</span>
-                  <span className="num" style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
-                    {p.value}<span style={{ fontSize: 9, fontWeight: 600, color: p.arrow.c }}>{p.arrow.a}</span>
-                  </span>
-                </div>
-              ))}
+            <div style={{ marginTop: 6 }}>
+              <Pins items={market.pins} />
             </div>
           </section>
         </>

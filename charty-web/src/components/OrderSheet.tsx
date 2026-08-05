@@ -3,43 +3,27 @@ import type { ActiveSim, Side } from '../types'
 import { useStore } from '../store'
 import { fmtW } from '../lib/data'
 
-const REASONS = ['지지선 반등', '저항 돌파', '추세 추종', '손절', '수익 실현', '과매도 반등', '기타']
 const PCTS = [25, 50, 75, 100] as const
 
 interface Props {
   sim: ActiveSim
   currentPrice: number
   dir: 'LONG' | 'SHORT'
-  open: boolean
   onClose: () => void
 }
 
-export default function OrderSheet({ sim, currentPrice, dir, open, onClose }: Props) {
+// 열릴 때만 마운트됨 — 초기 state가 곧 열 때마다의 초기화
+export default function OrderSheet({ sim, currentPrice, dir, onClose }: Props) {
   const placeOrder = useStore((s) => s.placeOrder)
   const ref = useRef<HTMLDialogElement>(null)
   const [oc, setOc] = useState<'OPEN' | 'CLOSE'>('OPEN')
   const [limit, setLimit] = useState('')
   const [qty, setQty] = useState('')
-  const [reasons, setReasons] = useState<string[]>([])
-  const [etcText, setEtcText] = useState('')
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    const d = ref.current
-    if (!d) return
-    if (open && !d.open) {
-      // 열 때마다 초기화
-      setOc('OPEN')
-      setLimit('')
-      setQty('')
-      setReasons([])
-      setEtcText('')
-      setMsg('')
-      d.showModal()
-    } else if (!open && d.open) {
-      d.close()
-    }
-  }, [open])
+    ref.current?.showModal()
+  }, [])
 
   const isLong = dir === 'LONG'
   const side = `${oc}_${dir}` as Side
@@ -55,12 +39,8 @@ export default function OrderSheet({ sim, currentPrice, dir, open, onClose }: Pr
     setQty(String(Math.max(0, n)))
   }
 
-  const toggleReason = (r: string) =>
-    setReasons(reasons.includes(r) ? reasons.filter((x) => x !== r) : [...reasons, r])
-
   const submit = () => {
-    const finalReasons = reasons.map((r) => (r === '기타' && etcText.trim() ? `기타: ${etcText.trim()}` : r))
-    const err = placeOrder(side, Number(limit), qtyV, finalReasons.length ? finalReasons : undefined)
+    const err = placeOrder(side, Number(limit), qtyV)
     if (err) setMsg(err)
     else onClose()
   }
@@ -125,18 +105,6 @@ export default function OrderSheet({ sim, currentPrice, dir, open, onClose }: Pr
         ))}
       </div>
       <input type="number" min={1} placeholder="직접 입력" value={qty} onChange={(e) => setQty(e.target.value)} />
-
-      <div className="field-label">매매 이유 <span className="dim" style={{ fontWeight: 400 }}>(선택)</span></div>
-      <div className="reason-chips">
-        {REASONS.map((r) => (
-          <button key={r} className={`opt${reasons.includes(r) ? ' selected' : ''}`} onClick={() => toggleReason(r)}>
-            {r}
-          </button>
-        ))}
-      </div>
-      {reasons.includes('기타') && (
-        <textarea rows={2} placeholder="왜 이 판단을 했나요?" value={etcText} onChange={(e) => setEtcText(e.target.value)} />
-      )}
 
       <button className={`pill pill-full order-cta ${isLong ? 'pill-long' : 'pill-short'}`} disabled={!canOrder} onClick={submit}>
         {oc === 'OPEN' ? 'Open' : 'Close'} {isLong ? 'Long' : 'Short'}
