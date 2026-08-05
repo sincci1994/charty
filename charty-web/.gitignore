@@ -10,7 +10,13 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.next/
 *.local
+
+# 파이프라인 산출물 — Supabase Storage로 배포, git엔 안 올림 (로컬은 dev 폴백용)
+# 배포 전 필수 순서: 버킷에 데이터 적재 → Vercel 빌드 env에 NEXT_PUBLIC_DATA_URL 설정 → push
+public/data/
+__pycache__/
 
 # Editor directories and files
 .vscode/*
