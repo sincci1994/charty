@@ -5,6 +5,7 @@ import {
   HistogramSeries,
   LineSeries,
   LineStyle,
+  TickMarkType,
   createChart,
   type IChartApi,
   type IPriceLine,
@@ -33,6 +34,7 @@ interface Props {
   rsi: (number | null)[]
   show: IndicatorShow
   lines: PriceLineSpec[]
+  maskTime?: boolean // 블라인드 정책(R0-2): 시간축을 상대 표기(D1, HH:MM)로 — 데이터는 무변형, 표시만
 }
 
 export const EMA_COLORS = { e1: '#f5a623', e2: '#3d5cff', e3: '#9b2ff8' } as const
@@ -51,7 +53,7 @@ interface SeriesMap {
   rsi?: ISeriesApi<'Line'>
 }
 
-export default function Chart({ candles, emas, bands, rsi, show, lines }: Props) {
+export default function Chart({ candles, emas, bands, rsi, show, lines, maskTime }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<SeriesMap | null>(null)
@@ -65,6 +67,12 @@ export default function Chart({ candles, emas, bands, rsi, show, lines }: Props)
     // ponytail: 색상은 생성 시점의 CSS 변수 스냅샷 — 세션 중 라이트↔다크 전환은 토글/재진입 시 반영
     const green = cssVar('--green')
     const red = cssVar('--red')
+    // 첫 캔들 기준 상대 일차(D1, D2…) — 실제 연·월·일은 시대 추정 힌트라 세션 중 숨김
+    const dayN = (t: number) => `D${Math.floor((t - (dataRef.current.candles[0]?.ts ?? t)) / 86400) + 1}`
+    const hhmm = (t: number) => {
+      const d = new Date(t * 1000)
+      return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+    }
     const chart = createChart(ref.current, {
       layout: {
         background: { type: ColorType.Solid, color: cssVar('--bg') },
@@ -76,7 +84,15 @@ export default function Chart({ candles, emas, bands, rsi, show, lines }: Props)
         vertLines: { color: cssVar('--hairline') },
         horzLines: { color: cssVar('--hairline') },
       },
-      timeScale: { timeVisible: true, borderColor: cssVar('--hairline') },
+      timeScale: {
+        timeVisible: true,
+        borderColor: cssVar('--hairline'),
+        ...(maskTime && {
+          tickMarkFormatter: (t: UTCTimestamp, type: TickMarkType) =>
+            type < TickMarkType.Time ? dayN(t) : hhmm(t),
+        }),
+      },
+      ...(maskTime && { localization: { timeFormatter: (t: UTCTimestamp) => `${dayN(t)} ${hhmm(t)}` } }),
       rightPriceScale: { borderColor: cssVar('--hairline') },
       autoSize: true,
     })
@@ -118,7 +134,7 @@ export default function Chart({ candles, emas, bands, rsi, show, lines }: Props)
       chartRef.current = null
       seriesRef.current = null
     }
-  }, [show.ema, show.bol, show.rsi, show.vol])
+  }, [show.ema, show.bol, show.rsi, show.vol, maskTime]) // maskTime 전환(세션 완료) 시 재생성 → 실제 날짜 복원
 
   useEffect(() => {
     const s = seriesRef.current

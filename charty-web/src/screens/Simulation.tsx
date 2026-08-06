@@ -253,6 +253,7 @@ export default function Simulation() {
             rsi={chartData.rsi}
             show={show}
             lines={lines}
+            maskTime={!sim.done}
           />
           {legend.length > 0 && (
             <div className="chart-legend">
