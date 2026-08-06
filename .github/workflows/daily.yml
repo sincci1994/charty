@@ -14,7 +14,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: pip install yfinance pandas requests
+      - run: pip install yfinance==1.5.2 pandas==3.0.5 requests==2.34.2 # 2026-08-05 run 검증 조합 — 깨지면 여기부터 의심
+
       - run: python charty-web/scripts/fetch-data.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
