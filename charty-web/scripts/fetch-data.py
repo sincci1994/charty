@@ -188,11 +188,11 @@ def gdelt_week(start):
     p = {"query": GDELT_Q, "mode": "artlist", "format": "json", "maxrecords": 8, "sort": "hybridrel",
          "startdatetime": start.strftime("%Y%m%d000000"),
          "enddatetime": (start + pd.Timedelta(days=7)).strftime("%Y%m%d000000")}
-    for i in range(3):
+    for i in range(6):  # 공유 러너 IP는 버스티하게 스로틀됨 — 백오프 60~960s로 버티면 살아나는 경우가 많음
         try:
             r = requests.get("https://api.gdeltproject.org/api/v2/doc/doc", params=p, timeout=30)
             if r.status_code == 429:  # 스로틀 — 지수 백오프 후 재시도 (마지막 시도면 잠만 자고 끝나니 바로 포기)
-                if i == 2:
+                if i == 5:
                     break
                 time.sleep(60 * 2**i)
                 continue
@@ -201,16 +201,17 @@ def gdelt_week(start):
             for a in arts:
                 title = a.get("title", "").strip()
                 dom = a.get("domain", "")
-                if not title or title in seen or dom not in SOURCES:
+                sd = a.get("seendate")  # 없으면 skip — KeyError는 어느 except에도 안 잡혀 save 없이 즉사
+                if not title or not sd or title in seen or dom not in SOURCES:
                     continue
                 seen.add(title)
-                out.append([int(pd.Timestamp(a["seendate"]).timestamp()), title, SOURCES[dom]])
+                out.append([int(pd.Timestamp(sd).timestamp()), title, SOURCES[dom]])
                 if len(out) == 5:
                     break
             return out
         except (ValueError, requests.RequestException):
             time.sleep(10)  # 일시 오류 — 쉬고 재시도
-    return None  # 3회 실패 — 차단 상태로 보고 중단 신호
+    return None  # 6회 실패 — 차단 상태로 보고 중단 신호
 
 
 old = json.loads(ARCHIVE.read_text(encoding="utf-8")) if ARCHIVE.exists() else []
@@ -227,6 +228,14 @@ week = (EPOCH + pd.Timedelta(weeks=(pd.Timestamp(max(p[0] for p in old), unit="s
         if old else EPOCH)
 now = pd.Timestamp.now(tz="UTC")
 archive = old
+
+
+def flush():  # NewsPanel이 오름차순을 가정하므로 저장 전 항상 sort
+    archive.sort(key=lambda p: p[0])
+    save("news-archive.json", json.dumps(archive, ensure_ascii=False, separators=(",", ":")))
+
+
+last_save = time.monotonic()
 while week + pd.Timedelta(days=7) <= now:
     got = gdelt_week(week)
     if got is None:  # 차단 지속 — 진행분 저장 후 중단, 다음 실행이 이 주부터 이어받음
@@ -234,8 +243,10 @@ while week + pd.Timedelta(days=7) <= now:
         break
     archive += got
     week += pd.Timedelta(days=7)
+    if time.monotonic() - last_save > 600:  # 10분 체크포인트 — 타임아웃 킬·크래시에도 진행분 보존
+        flush()
+        last_save = time.monotonic()
     time.sleep(10)  # GDELT 제한(5초당 1요청)에 여유를 둠 — 최초 실행 ~1.5시간
-archive.sort(key=lambda p: p[0])
-save("news-archive.json", json.dumps(archive, ensure_ascii=False, separators=(",", ":")))
+flush()
 print("news-archive.json:", len(archive), "headlines")
 print("done ->", OUT)
