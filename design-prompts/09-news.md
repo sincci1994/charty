@@ -8,7 +8,7 @@
 
 - 상단 탭바 `[Chart] / [News]` (News 활성), 좌측 ← Back
 - 진행률 영역, 종목 숨김 표시(`****** (숨김)`)
-- 하단 고정 트레이드 바 (Assets/현재가 + Long/Short) — News를 보면서도 주문 가능
+- 하단 고정 트레이드 바 (Assets/현재가 + 매수/매도 — 구 Long/Short, 현물 전환 방침은 [10번](./10-order-judgment.md) 참조) — News를 보면서도 주문 가능
 - **Chart 전용 요소는 News에서 숨김**: 타임프레임 칩(5m~1w), 보조지표 토글(EMA/BOL/RSI/VOL)
 - `[다음 캔들 ▶]` 버튼은 News에서도 유지 (지표를 보며 시간 진행 가능)
 
