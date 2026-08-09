@@ -30,8 +30,16 @@ function execute(sim: ActiveSim, o: Order, ts: number, price: number) {
     const cost = price * qty
     if (sim.cash < cost) return // 체결 시점 잔고 부족 → 주문 소멸
     sim.cash -= cost
-    mergePosition(sim, side === 'OPEN_LONG' ? 'LONG' : 'SHORT', qty, price)
-    sim.trades.push({ ts, side, price, qty })
+    const key = side === 'OPEN_LONG' ? 'LONG' : 'SHORT'
+    mergePosition(sim, key, qty, price)
+    // 주문의 리스크 계획을 포지션에 반영 (마지막 체결 우선) — sl이 실제로 바뀔 때만 도달 기록 리셋
+    const pos = sim.positions[key]!
+    if (o.sl != null) {
+      if (pos.sl !== o.sl) pos.slHit = false
+      pos.sl = o.sl
+    }
+    if (o.tp != null) pos.tp = o.tp
+    sim.trades.push({ ts, side, price, qty, reasons: o.reasons, sl: o.sl, tp: o.tp })
   } else {
     const key = side === 'CLOSE_LONG' ? 'LONG' : 'SHORT'
     const pos = sim.positions[key]
@@ -39,7 +47,7 @@ function execute(sim: ActiveSim, o: Order, ts: number, price: number) {
     const q = Math.min(qty, pos.qty)
     if (key === 'LONG') {
       sim.cash += price * q
-      sim.trades.push({ ts, side, price, qty: q, pnl: (price - pos.avgPrice) * q })
+      sim.trades.push({ ts, side, price, qty: q, pnl: (price - pos.avgPrice) * q, reasons: o.reasons })
     } else {
       // 증거금(avgPrice*q) 반환 + 손익(avgPrice - price)*q
       sim.cash += (2 * pos.avgPrice - price) * q
@@ -74,7 +82,7 @@ export function validateOrder(sim: ActiveSim, side: Side, price: number, qty: nu
     const pending = sim.openOrders
       .filter((o) => o.side === side)
       .reduce((s, o) => s + o.qty, 0)
-    if (qty + pending > held) return '청산 가능 수량 초과'
+    if (qty + pending > held) return side === 'CLOSE_LONG' ? '매도 가능 수량 초과' : '청산 가능 수량 초과'
   }
   return null
 }
@@ -95,13 +103,13 @@ export function forceCloseAll(sim: ActiveSim, candle: Candle) {
   const l = sim.positions.LONG
   if (l) {
     sim.cash += candle.c * l.qty
-    sim.trades.push({ ts: candle.ts, side: 'CLOSE_LONG', price: candle.c, qty: l.qty, pnl: (candle.c - l.avgPrice) * l.qty })
+    sim.trades.push({ ts: candle.ts, side: 'CLOSE_LONG', price: candle.c, qty: l.qty, pnl: (candle.c - l.avgPrice) * l.qty, forced: true })
     delete sim.positions.LONG
   }
   const s = sim.positions.SHORT
   if (s) {
     sim.cash += (2 * s.avgPrice - candle.c) * s.qty
-    sim.trades.push({ ts: candle.ts, side: 'CLOSE_SHORT', price: candle.c, qty: s.qty, pnl: (s.avgPrice - candle.c) * s.qty })
+    sim.trades.push({ ts: candle.ts, side: 'CLOSE_SHORT', price: candle.c, qty: s.qty, pnl: (s.avgPrice - candle.c) * s.qty, forced: true })
     delete sim.positions.SHORT
   }
   sim.done = true

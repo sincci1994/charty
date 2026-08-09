@@ -37,17 +37,26 @@ export interface Candle {
   v: number
 }
 
+// R5 매매 이유 — 수익화방향 5장의 5범주를 범주 레벨로 축약
+export const REASONS = ['기술적', '기업·실적', '거시경제', '뉴스·분위기', '감정·직관'] as const
+
 export interface Order {
   id: string
   side: Side
   price: number
   qty: number
+  reasons?: string[] // R5 판단 기록 — optional: 구버전 persist 호환
+  sl?: number // 손절 계획가 (기록만, 자동 체결 없음)
+  tp?: number // 목표 계획가
 }
 
 export interface Position {
   qty: number
   avgPrice: number
   entries?: { qty: number; price: number }[] // 진입 이력 (append-only) — optional: 구버전 persist 호환
+  sl?: number // 손절 계획가 — 체결·수정으로 갱신
+  tp?: number
+  slHit?: boolean // 현재 sl 값에 대해 도달 이벤트를 이미 기록했는가 (sl 수정 시 리셋)
 }
 
 export interface Trade {
@@ -56,6 +65,21 @@ export interface Trade {
   price: number
   qty: number
   pnl?: number
+  reasons?: string[] // 주문의 판단 기록이 체결에 실려 보존됨
+  sl?: number
+  tp?: number
+  forced?: boolean // 세션 종료 강제 매도 — 사용자 행동이 아니므로 리포트의 '계획 실행' 집계에서 제외
+}
+
+// R6 행동 이벤트 — 원시 기록만, 해석은 리포트(R7)에서
+// ts는 시뮬 시간(캔들 ts). k: news=뉴스 탭 열람, cancel=주문 취소, order=주문 제출(ms=시트 열림→제출 소요),
+// sl/tp=리스크 수정(old→v), slhit=손절 계획가 도달
+export interface SimEvent {
+  ts: number
+  k: 'news' | 'cancel' | 'order' | 'sl' | 'tp' | 'slhit'
+  v?: number | null
+  old?: number | null
+  ms?: number
 }
 
 export interface ActiveSim {
@@ -72,6 +96,7 @@ export interface ActiveSim {
   positions: { LONG?: Position; SHORT?: Position }
   openOrders: Order[]
   trades: Trade[]
+  events?: SimEvent[] // R6 — optional: 구버전 persist 호환
   done: boolean
 }
 
@@ -80,6 +105,7 @@ export interface SimRecord {
   endedAt: number
   style: string
   styleLabel?: string
+  timeframe?: Timeframe // optional: R7 도입 이전 기록엔 없음 — 리포트의 캔들 환산에 사용
   symbol: string
   startBalance: number
   endBalance: number
@@ -88,4 +114,5 @@ export interface SimRecord {
   emotion: string
   memo: string
   trades?: Trade[] // optional: 도입 이전 기록엔 없음
+  events?: SimEvent[] // optional: R6 도입 이전 기록엔 없음
 }

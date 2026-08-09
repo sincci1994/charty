@@ -4,6 +4,7 @@ import Chart, { BOL_COLOR, EMA_COLORS, type IndicatorShow, type PriceLineSpec } 
 import IndicatorSheet, { DEFAULT_CFG, type IndCfg } from '../components/IndicatorSheet'
 import NewsPanel from '../components/NewsPanel'
 import OrderSheet from '../components/OrderSheet'
+import RiskSheet from '../components/RiskSheet'
 import { simProgress, useStore } from '../store'
 import { LOOKBACK, TF, bollinger, ema, fmtW, loadCandles, loadEcon, loadNewsArchive, resampleCandles, rsi, styleLabel } from '../lib/data'
 import { equity } from '../lib/engine'
@@ -24,11 +25,12 @@ function progressText(pct: number) {
 
 export default function Simulation() {
   const nav = useNav()
-  const { activeSim: sim, candles, nextCandle, endNow, cancelOrder, resume } = useStore()
+  const { activeSim: sim, candles, nextCandle, endNow, cancelOrder, resume, logNewsView } = useStore()
   const [show, setShow] = useState<IndicatorShow>({ ema: true, bol: false, rsi: false, vol: true })
   const [cfg, setCfg] = useState<IndCfg>(DEFAULT_CFG)
   const [indOpen, setIndOpen] = useState(false)
-  const [sheetDir, setSheetDir] = useState<'LONG' | 'SHORT' | null>(null)
+  const [sheetSide, setSheetSide] = useState<'buy' | 'sell' | null>(null)
+  const [riskEdit, setRiskEdit] = useState<'sl' | 'tp' | null>(null)
   const [viewTf, setViewTf] = useState<Timeframe | null>(null) // null = 세션 TF
   const [extra, setExtra] = useState<Partial<Record<Timeframe, Candle[] | 'missing'>>>({}) // 잘게 보기용 파일 캐시
   const [tab, setTab] = useState<'chart' | 'news'>('chart')
@@ -46,8 +48,8 @@ export default function Simulation() {
     else resume().catch(() => nav('/practice', { replace: true })) // 캔들 로드 실패 시 무한 로딩 방지 — sim은 보존되므로 재진입=재시도
   }, [sim, nav, resume])
 
-  // 포지션/미체결이 생기면 상태 카드를 자동으로 펼침 (수동 접기는 유지)
-  const hasItems = !!sim && (!!sim.positions.LONG || !!sim.positions.SHORT || sim.openOrders.length > 0)
+  // 보유/미체결이 생기면 상태 카드를 자동으로 펼침 (수동 접기는 유지)
+  const hasItems = !!sim && (!!sim.positions.LONG || sim.openOrders.length > 0)
   const [foldOpen, setFoldOpen] = useState(() => hasItems || !!sim?.done)
   useEffect(() => {
     if (hasItems || sim?.done) setFoldOpen(true)
@@ -65,7 +67,7 @@ export default function Simulation() {
       const msg =
         fresh.length > 1
           ? `주문 ${fresh.length}건 체결`
-          : `${t.side.includes('LONG') ? 'Long' : 'Short'} ${t.side.startsWith('OPEN') ? '진입' : '청산'} ${t.qty}주 @ ${fmtW(t.price)} 체결`
+          : `${t.side === 'OPEN_LONG' ? '매수' : '매도'} ${t.qty}주 @ ${fmtW(t.price)} 체결`
       setToast({ id: Date.now(), msg })
     }
     prevTrades.current = n
@@ -163,18 +165,17 @@ export default function Simulation() {
   const eq = equity(sim, price)
   const pnl = eq - sim.startBalance
   const pnlPct = (pnl / sim.startBalance) * 100
-  const posCount = (sim.positions.LONG ? 1 : 0) + (sim.positions.SHORT ? 1 : 0)
+  const pos = sim.positions.LONG
   const chartData = (view ?? visible)!
 
   const lines: PriceLineSpec[] = []
-  for (const k of ['LONG', 'SHORT'] as const) {
-    const p = sim.positions[k]
-    if (!p) continue
-    const pct = ((k === 'LONG' ? price - p.avgPrice : p.avgPrice - price) / p.avgPrice) * 100
-    lines.push({ price: p.avgPrice, up: k === 'LONG', title: `${k} ${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%` })
+  if (pos) {
+    lines.push({ price: pos.avgPrice, color: 'dim', title: '평단' })
+    if (pos.sl != null) lines.push({ price: pos.sl, color: 'red', title: 'SL' })
+    if (pos.tp != null) lines.push({ price: pos.tp, color: 'green', title: 'TP' })
   }
   for (const o of sim.openOrders)
-    lines.push({ price: o.price, up: o.side.includes('LONG'), title: `${o.side.startsWith('OPEN') ? '진입' : '청산'} ${o.qty}주` })
+    lines.push({ price: o.price, color: o.side === 'OPEN_LONG' ? 'green' : 'red', title: `${o.side === 'OPEN_LONG' ? '매수' : '매도'} ${o.qty}주` })
 
   const legend: { txt: string; color: string }[] = []
   if (show.ema)
@@ -196,7 +197,7 @@ export default function Simulation() {
         </button>
         <div className="sim-tabs">
           <button className={`sim-tab${tab === 'chart' ? ' active' : ''}`} onClick={() => setTab('chart')}>Chart</button>
-          <button className={`sim-tab${tab === 'news' ? ' active' : ''}`} onClick={() => setTab('news')}>News</button>
+          <button className={`sim-tab${tab === 'news' ? ' active' : ''}`} onClick={() => { if (tab !== 'news') logNewsView(); setTab('news') }}>News</button>
         </div>
         {!sim.done && (
           <button className="end-btn" onClick={() => endDialogRef.current?.showModal()}>End</button>
@@ -301,7 +302,7 @@ export default function Simulation() {
       <details className="card fold" open={foldOpen} onToggle={(e) => setFoldOpen(e.currentTarget.open)}>
         <summary>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <span className="dim small">포지션 <b style={{ color: 'var(--text)' }}>{posCount}</b></span>
+            <span className="dim small">보유 <b style={{ color: 'var(--text)' }}>{pos ? 1 : 0}</b></span>
             <span className="dim small">미체결 <b style={{ color: 'var(--text)' }}>{sim.openOrders.length}</b></span>
             <span className={`small num ${pnl === 0 ? 'dim' : pnl > 0 ? 'green' : 'red'}`} style={{ fontWeight: 600 }}>
               {pnl >= 0 ? '+' : '-'}{fmtW(Math.abs(pnl))} ({pnl >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)
@@ -312,41 +313,54 @@ export default function Simulation() {
           </svg>
         </summary>
         <div className="fold-body">
-          {posCount === 0 && <div className="empty" style={{ padding: '10px 0' }}>보유 포지션 없음</div>}
-          {(['LONG', 'SHORT'] as const).map((k) => {
-            const p = sim.positions[k]
-            if (!p) return null
-            const pPnl = (k === 'LONG' ? price - p.avgPrice : p.avgPrice - price) * p.qty
-            const pPnlPct = ((k === 'LONG' ? price - p.avgPrice : p.avgPrice - price) / p.avgPrice) * 100
+          {!pos && sim.openOrders.length === 0 && <div className="empty" style={{ padding: '10px 0' }}>보유 종목 없음</div>}
+          {pos && (() => {
+            const pPnl = (price - pos.avgPrice) * pos.qty
+            const pPnlPct = ((price - pos.avgPrice) / pos.avgPrice) * 100
+            const riskPct = (v: number) => `${v >= pos.avgPrice ? '+' : ''}${(((v - pos.avgPrice) / pos.avgPrice) * 100).toFixed(1)}%`
             return (
-              <div key={k} className="pos-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className={`badge-dir ${k === 'LONG' ? 'long' : 'short'}`}>{k}</span>
-                  <span className="small num" style={{ fontWeight: 600 }}>{p.qty}주 · Avg {fmtW(p.avgPrice)}</span>
-                  <span className={`small num ${pPnl >= 0 ? 'green' : 'red'}`} style={{ flex: 1, textAlign: 'right', fontWeight: 600 }}>
+              <div className="pos-card">
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span className="small num" style={{ fontWeight: 600 }}>{pos.qty}주 · 평단 {fmtW(pos.avgPrice)}</span>
+                    <span className="dim num" style={{ fontSize: 11 }}>현재가 {fmtW(price)}</span>
+                  </div>
+                  <span className={`small num ${pPnl >= 0 ? 'green' : 'red'}`} style={{ fontWeight: 700 }}>
                     {pPnl >= 0 ? '+' : '-'}{fmtW(Math.abs(pPnl))} ({pPnl >= 0 ? '+' : ''}{pPnlPct.toFixed(1)}%)
                   </span>
                 </div>
+                <div className="risk-rows">
+                  {([['sl', '손절', pos.sl, 'red'], ['tp', '목표', pos.tp, 'green']] as const).map(([kind, label, v, tone]) => (
+                    <div key={kind} className="risk-row">
+                      <span className={`num ${v != null ? tone : 'dim'}`} style={{ fontSize: 12, fontWeight: 600 }}>
+                        {v != null ? `${label} ${fmtW(v)} (${riskPct(v)})` : `${label} 미설정`}
+                      </span>
+                      {!sim.done && (
+                        <button className="risk-edit-btn" onClick={() => setRiskEdit(kind)}>{v != null ? '수정' : '설정'}</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
                 <details className="entry-fold">
-                  <summary>Entry History</summary>
+                  <summary>매수 내역</summary>
                   <div className="entry-list">
-                    {(p.entries ?? []).map((e, i) => (
+                    {(pos.entries ?? []).map((e, i) => (
                       <div key={i} className="dim num" style={{ fontSize: 11 }}>{e.qty}주 @ {fmtW(e.price)}</div>
                     ))}
                   </div>
                 </details>
               </div>
             )
-          })}
+          })()}
           {sim.openOrders.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {sim.openOrders.map((o) => (
                 <div key={o.id} className="order-row">
-                  <span className={`badge-dir ${o.side.includes('LONG') ? 'long' : 'short'}`}>
-                    {o.side.includes('LONG') ? 'LONG' : 'SHORT'}
+                  <span className={`badge-dir ${o.side === 'OPEN_LONG' ? 'long' : 'short'}`}>
+                    {o.side === 'OPEN_LONG' ? '매수' : '매도'}
                   </span>
                   <span className="small num" style={{ flex: 1 }}>
-                    {o.side.startsWith('OPEN') ? '진입' : '청산'} {o.qty}주 @ {fmtW(o.price)}
+                    {o.qty}주 @ {fmtW(o.price)}
                   </span>
                   <span className="dim" style={{ fontSize: 10 }}>대기</span>
                   <button className="cancel-btn" onClick={() => cancelOrder(o.id)}>
@@ -367,12 +381,15 @@ export default function Simulation() {
               <span className="dim small">현재가 <b className="num" style={{ color: 'var(--text)' }}>{fmtW(price)}</b></span>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="pill pill-long" style={{ flex: 1 }} onClick={() => setSheetDir('LONG')}>Long</button>
-              <button className="pill pill-short" style={{ flex: 1 }} onClick={() => setSheetDir('SHORT')}>Short</button>
+              <button className="pill pill-long" style={{ flex: 1 }} onClick={() => setSheetSide('buy')}>매수</button>
+              <button className="pill pill-short" style={{ flex: 1 }} onClick={() => setSheetSide('sell')}>매도</button>
             </div>
           </div>
-          {sheetDir && (
-            <OrderSheet sim={sim} currentPrice={price} dir={sheetDir} onClose={() => setSheetDir(null)} />
+          {sheetSide && (
+            <OrderSheet sim={sim} currentPrice={price} buy={sheetSide === 'buy'} onClose={() => setSheetSide(null)} />
+          )}
+          {riskEdit && pos && (
+            <RiskSheet kind={riskEdit} avgPrice={pos.avgPrice} currentPrice={price} current={pos[riskEdit]} onClose={() => setRiskEdit(null)} />
           )}
         </>
       )}
@@ -394,7 +411,7 @@ export default function Simulation() {
 
       <dialog ref={endDialogRef}>
         <h3>지금 종료할까요?</h3>
-        <p>보유 중인 포지션은 현재 종가로<br />강제 청산됩니다. 진행할까요?</p>
+        <p>보유 중인 주식은 현재 종가로<br />전량 매도됩니다. 진행할까요?</p>
         <div className="actions">
           <button className="pill pill-secondary" onClick={() => endDialogRef.current?.close()}>취소</button>
           <button className="pill pill-danger" onClick={() => { endDialogRef.current?.close(); endNow() }}>종료하기</button>

@@ -85,7 +85,7 @@ export default function Practice() {
 
       <dialog ref={dialogRef}>
         <h3>연습을 종료할까요?</h3>
-        <p>남은 포지션은 종가로 청산되고<br />회고를 작성합니다.</p>
+        <p>남은 보유 주식은 종가로 매도되고<br />회고를 작성합니다.</p>
         <div className="actions">
           <button className="pill pill-secondary" onClick={() => dialogRef.current?.close()}>취소</button>
           <button className="pill pill-danger" onClick={quit}>종료하기</button>

@@ -1,46 +1,83 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ActiveSim, Side } from '../types'
+import type { ActiveSim } from '../types'
+import { REASONS } from '../types'
 import { useStore } from '../store'
 import { fmtW } from '../lib/data'
 
 const PCTS = [25, 50, 75, 100] as const
+const SL_PCTS = [-3, -5, -10] as const
+const TP_PCTS = [5, 10, 20] as const
 
 interface Props {
   sim: ActiveSim
   currentPrice: number
-  dir: 'LONG' | 'SHORT'
+  buy: boolean // true=매수(OPEN_LONG), false=매도(CLOSE_LONG) — 현물 문법, 숏 없음
   onClose: () => void
 }
 
 // 열릴 때만 마운트됨 — 초기 state가 곧 열 때마다의 초기화
-export default function OrderSheet({ sim, currentPrice, dir, onClose }: Props) {
+export default function OrderSheet({ sim, currentPrice, buy, onClose }: Props) {
   const placeOrder = useStore((s) => s.placeOrder)
   const ref = useRef<HTMLDialogElement>(null)
-  const [oc, setOc] = useState<'OPEN' | 'CLOSE'>('OPEN')
+  const openedAt = useRef(Date.now()) // R6: 시트 열림→제출 소요시간
   const [limit, setLimit] = useState('')
   const [qty, setQty] = useState('')
+  const [reasons, setReasons] = useState<string[]>([])
+  const [foldOpen, setFoldOpen] = useState(false)
+  const [slPct, setSlPct] = useState(0)
+  const [sl, setSl] = useState('')
+  const [tpPct, setTpPct] = useState(0)
+  const [tp, setTp] = useState('')
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
     ref.current?.showModal()
   }, [])
 
-  const isLong = dir === 'LONG'
-  const side = `${oc}_${dir}` as Side
+  const side = buy ? 'OPEN_LONG' : 'CLOSE_LONG' // 리터럴 고정 — 문자열 결합 금지 (OPEN_SHORT 유출 방지)
   const limitV = Number(limit) || currentPrice
-  const held = sim.positions[dir]?.qty ?? 0
-  const pendingClose = sim.openOrders.filter((o) => o.side === `CLOSE_${dir}`).reduce((s, o) => s + o.qty, 0)
-  const avail = held - pendingClose
+  const held = sim.positions.LONG?.qty ?? 0
+  const pendingSell = sim.openOrders.filter((o) => o.side === 'CLOSE_LONG').reduce((s, o) => s + o.qty, 0)
+  const avail = held - pendingSell
   const qtyV = Number(qty) || 0
-  const canOrder = qtyV >= 1 && Number(limit) > 0
+  const canOrder = qtyV >= 1 && Number(limit) > 0 && reasons.length > 0
+
+  const miss = [
+    Number(limit) > 0 ? null : '가격',
+    qtyV >= 1 ? null : '수량',
+    reasons.length > 0 ? null : '이유',
+  ].filter(Boolean)
 
   const pickPct = (p: number) => {
-    const n = oc === 'OPEN' ? Math.floor((sim.cash * p) / 100 / limitV) : Math.floor((avail * p) / 100)
+    const n = buy ? Math.floor((sim.cash * p) / 100 / limitV) : Math.floor((avail * p) / 100)
     setQty(String(Math.max(0, n)))
   }
 
+  const toggleReason = (r: string) => {
+    setMsg('')
+    setReasons(reasons.includes(r) ? reasons.filter((x) => x !== r) : [...reasons, r])
+  }
+
+  const pickRisk = (kind: 'sl' | 'tp', p: number) => {
+    const cur = kind === 'sl' ? slPct : tpPct
+    const on = cur === p
+    const val = on ? '' : String(Math.round(limitV * (1 + p / 100)))
+    if (kind === 'sl') {
+      setSlPct(on ? 0 : p)
+      setSl(val)
+    } else {
+      setTpPct(on ? 0 : p)
+      setTp(val)
+    }
+  }
+
   const submit = () => {
-    const err = placeOrder(side, Number(limit), qtyV)
+    const slV = buy ? Number(sl) || undefined : undefined
+    const tpV = buy ? Number(tp) || undefined : undefined
+    // 방향 검증 — 역방향 리스크 값은 설정 즉시 도달해 데이터로 무의미
+    if (slV != null && slV >= limitV) return setMsg('손절가는 지정가보다 낮아야 해요')
+    if (tpV != null && tpV <= limitV) return setMsg('목표가는 지정가보다 높아야 해요')
+    const err = placeOrder(side, Number(limit), qtyV, { reasons, sl: slV, tp: tpV, ms: Date.now() - openedAt.current })
     if (err) setMsg(err)
     else onClose()
   }
@@ -49,6 +86,9 @@ export default function OrderSheet({ sim, currentPrice, dir, onClose }: Props) {
   const tick = currentPrice < 10000 ? 1 : 100
   const step = (delta: number) =>
     setLimit(String(Math.max(tick, Math.round(((Number(limit) || currentPrice) + delta * tick) * 100) / 100)))
+
+  const riskCaption = (pct: number, val: string) =>
+    val ? `${pct ? `${pct > 0 ? '+' : ''}${pct}% → ` : ''}${fmtW(Number(val))}` : ''
 
   return (
     <dialog
@@ -60,41 +100,34 @@ export default function OrderSheet({ sim, currentPrice, dir, onClose }: Props) {
       <div className="sheet-handle" />
       <div className="sheet-head">
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontSize: 17, fontWeight: 700 }} className={isLong ? 'green' : 'red'}>
-            {isLong ? 'Long' : 'Short'}
+          <span style={{ fontSize: 17, fontWeight: 700 }} className={buy ? 'green' : 'red'}>
+            {buy ? '매수' : '매도'}
           </span>
           <span className="dim" style={{ fontSize: 13 }}>지정가 주문</span>
         </div>
-        <div className="seg">
-          {(['OPEN', 'CLOSE'] as const).map((k) => (
-            <button key={k} className={oc === k ? 'active' : ''} onClick={() => setOc(k)}>
-              {k === 'OPEN' ? 'Open' : 'Close'}
-            </button>
-          ))}
-        </div>
       </div>
 
-      <div className="field-label">Limit Price</div>
+      <div className="field-label">지정가</div>
       <div className="stepper">
         <button onClick={() => step(-1)}>−</button>
         <input
           type="number"
-          placeholder="Enter limit price"
+          placeholder="가격 입력"
           value={limit}
-          onChange={(e) => setLimit(e.target.value)}
+          onChange={(e) => { setMsg(''); setLimit(e.target.value) }}
         />
         <button onClick={() => step(1)}>+</button>
         <button className="now-btn" onClick={() => setLimit(String(currentPrice))}>현재가</button>
       </div>
 
       <div className="field-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        Quantity
+        수량
         <span className="dim small num" style={{ fontWeight: 400 }}>
           {qtyV >= 1
             ? `${qtyV}주 ≈ ${fmtW(qtyV * limitV)}`
-            : oc === 'OPEN'
+            : buy
               ? `주문 가능 ${fmtW(sim.cash)}`
-              : `청산 가능 ${avail}주`}
+              : `매도 가능 ${avail}주`}
         </span>
       </div>
       <div className="qty-chips">
@@ -104,12 +137,73 @@ export default function OrderSheet({ sim, currentPrice, dir, onClose }: Props) {
           </button>
         ))}
       </div>
-      <input type="number" min={1} placeholder="직접 입력" value={qty} onChange={(e) => setQty(e.target.value)} />
+      <input type="number" min={1} placeholder="직접 입력" value={qty} onChange={(e) => { setMsg(''); setQty(e.target.value) }} />
 
-      <button className={`pill pill-full order-cta ${isLong ? 'pill-long' : 'pill-short'}`} disabled={!canOrder} onClick={submit}>
-        {oc === 'OPEN' ? 'Open' : 'Close'} {isLong ? 'Long' : 'Short'}
+      <div className="field-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        왜 이 주문인가요?
+        <span className="dim" style={{ fontSize: 10, fontWeight: 400 }}>복수 선택 · 필수</span>
+      </div>
+      <div className="reason-chips">
+        {REASONS.map((r) => (
+          <button key={r} className={reasons.includes(r) ? 'opt selected' : 'opt'} onClick={() => toggleReason(r)}>
+            {r}
+          </button>
+        ))}
+      </div>
+      <div className="dim" style={{ fontSize: 11, marginTop: 7 }}>감정도 기록할 가치가 있는 근거예요</div>
+
+      {buy && (
+        <div className="risk-fold">
+          <button className="risk-fold-head" onClick={() => setFoldOpen(!foldOpen)}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>
+              리스크 설정 <span className="dim" style={{ fontWeight: 400 }}>(선택)</span>
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: foldOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+              <path d="M6 9 L12 15 L18 9" />
+            </svg>
+          </button>
+          {foldOpen && (
+            <div className="risk-fold-body">
+              {([['sl', '손절가', SL_PCTS, slPct, sl, setSl, setSlPct, 'red'], ['tp', '목표가', TP_PCTS, tpPct, tp, setTp, setTpPct, 'green']] as const).map(
+                ([kind, label, pcts, curPct, val, setVal, setPct, tone]) => (
+                  <div key={kind}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
+                      <span className={`num ${tone}`} style={{ fontSize: 11, fontWeight: 600 }}>{riskCaption(curPct, val)}</span>
+                    </div>
+                    <div className="qty-chips">
+                      {pcts.map((p) => (
+                        <button key={p} className={curPct === p ? 'opt selected' : 'opt'} style={{ height: 36, fontSize: 12 }} onClick={() => pickRisk(kind, p)}>
+                          {p > 0 ? `+${p}%` : `${p}%`}
+                        </button>
+                      ))}
+                      <input
+                        type="number"
+                        placeholder="직접 입력"
+                        value={val}
+                        onChange={(e) => { setVal(e.target.value); setPct(0) }}
+                        style={{ flex: 1.3, minWidth: 0, height: 36, fontSize: 12, textAlign: 'center', marginTop: 0 }}
+                      />
+                    </div>
+                  </div>
+                ),
+              )}
+              <div className="dim" style={{ fontSize: 11, lineHeight: 1.5 }}>
+                자동 체결되지 않아요. 계획과 실제 실행의 차이를 기록하기 위한 값이에요
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <button className={`pill pill-full order-cta ${buy ? 'pill-long' : 'pill-short'}`} disabled={!canOrder} onClick={submit}>
+        {buy ? '매수하기' : '매도하기'}
       </button>
-      {msg && <div className="hint-msg center">{msg}</div>}
+      {msg ? (
+        <div className="hint-msg center">{msg}</div>
+      ) : !canOrder ? (
+        <div className="hint-msg center">{miss.join(' · ')} 입력 후 주문할 수 있어요</div>
+      ) : null}
     </dialog>
   )
 }

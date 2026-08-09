@@ -23,8 +23,8 @@ export interface IndicatorShow {
 
 export interface PriceLineSpec {
   price: number
-  up: boolean // true → --green, false → --red
-  title: string // 라인 옆 텍스트 (포지션: PnL%, 주문: 수량)
+  color: 'green' | 'red' | 'dim' // CSS 변수 이름 — 평단은 dim, 손절/매도는 red, 목표/매수는 green
+  title: string // 라인 옆 텍스트 (평단·SL·TP, 주문 수량)
 }
 
 interface Props {
@@ -151,7 +151,7 @@ export default function Chart({ candles, emas, bands, rsi, show, lines, maskTime
     plRef.current = lines.map((l) =>
       s.candle.createPriceLine({
         price: l.price,
-        color: cssVar(l.up ? '--green' : '--red'),
+        color: cssVar(`--${l.color}`),
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
