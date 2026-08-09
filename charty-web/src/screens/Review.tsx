@@ -1,35 +1,74 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Navigate, useNav } from '../lib/nav'
 import { useStore } from '../store'
-import { fmtW, styleLabel } from '../lib/data'
+import { TF, fmtW, styleLabel } from '../lib/data'
+import { reasonDist, sessionObservations, type Observation } from '../lib/report'
 
 const EMOTIONS = [['😰', '불안함'], ['😬', '긴장됨'], ['😎', '자신감'], ['😢', '우울함'], ['😐', '무덤덤함']] as const
 
+interface SessionReport {
+  resultLine: string
+  observations: Observation[]
+  dist: { name: string; n: number }[]
+}
+
 export default function Review() {
   const nav = useNav()
-  const { activeSim: sim, submitReview } = useStore()
+  const { activeSim: sim, submitReview, waitlistAt, joinWaitlist } = useStore()
   const [emotion, setEmotion] = useState('')
   const [memo, setMemo] = useState('')
-  const [saved, setSaved] = useState(false)
+  // 저장 순간 sim이 비워지므로 리포트는 저장 직전에 계산해 로컬로 보관
+  const [report, setReport] = useState<SessionReport | null>(null)
 
-  // 저장 후 스플래시 → 잠시 뒤 홈으로
-  useEffect(() => {
-    if (!saved) return
-    const id = setTimeout(() => nav('/', { replace: true }), 1800)
-    return () => clearTimeout(id)
-  }, [saved, nav])
-
-  if (saved) {
+  // 저장 후: 세션 행동 리포트 (자동 이동 없음 — 읽고 직접 나간다)
+  if (report) {
     return (
-      <div className="splash">
-        <div className="splash-check">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12.5 L10 17.5 L19 7" strokeDasharray="48" style={{ animation: 'checkDraw 0.45s ease-out 0.3s both' }} />
-          </svg>
+      <div className="page report-page">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 8 }}>
+          <span className="report-check">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12.5 L9.5 18 L20 6.5" /></svg>
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>회고가 저장되었습니다</span>
         </div>
-        <div className="center" style={{ animation: 'fadeUp 0.4s ease-out 0.5s both' }}>
-          <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.374px' }}>회고가 저장되었습니다!</div>
-          <div className="dim" style={{ fontSize: 14, marginTop: 10, lineHeight: 1.5 }}>잠시 후 홈으로<br />자동 이동됩니다</div>
+        <div className="dim num" style={{ fontSize: 12 }}>{report.resultLine}</div>
+
+        <div style={{ fontSize: 15, fontWeight: 700, marginTop: 8 }}>이번 세션에서 관찰된 행동</div>
+        {report.observations.map((ob) => (
+          <div key={ob.text} className="card obs-card">
+            <span className="obs-glyph">{ob.glyph}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.45 }}>{ob.text}</span>
+              <span className="dim" style={{ fontSize: 11 }}>{ob.basis}</span>
+            </div>
+          </div>
+        ))}
+        {report.observations.length === 0 && (
+          <div className="dim" style={{ fontSize: 12 }}>세션이 쌓이면 관찰이 늘어나요</div>
+        )}
+
+        {report.dist.length > 0 && (
+          <div className="card" style={{ gap: 10 }}>
+            <div className="dim" style={{ fontSize: 12, fontWeight: 600 }}>이번 세션 판단 근거</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {report.dist.map((d) => (
+                <span key={d.name} className="dist-chip">{d.name} <b>{d.n}</b></span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="cta-card">
+          <div style={{ fontSize: 15, fontWeight: 700 }}>이런 리포트를 매 세션 받아보세요</div>
+          <div className="dim" style={{ fontSize: 12, lineHeight: 1.5 }}>누적 행동 분석과 맞춤 훈련 추천을 준비하고 있어요</div>
+          <div className="dim" style={{ fontSize: 11 }}>출시 예정 · 월 ₩4,900</div>
+          <button className="pill pill-primary pill-full" style={{ marginTop: 8 }} disabled={!!waitlistAt} onClick={joinWaitlist}>
+            {waitlistAt ? '신청 완료 ✓' : '미리 신청하기'}
+          </button>
+          <button className="cta-skip" onClick={() => nav('/', { replace: true })}>괜찮아요, 홈으로</button>
+        </div>
+
+        <div className="cta-bar" style={{ borderTop: '1px solid var(--hairline)' }}>
+          <button className="pill pill-secondary pill-full" onClick={() => nav('/', { replace: true })}>홈으로</button>
         </div>
       </div>
     )
@@ -42,7 +81,11 @@ export default function Review() {
 
   const submit = () => {
     if (!emotion) return
-    setSaved(true)
+    setReport({
+      resultLine: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}% · 거래 ${sim.trades.length}회 · ${styleLabel(sim.style, sim.styleLabel)} · ${new Date().toLocaleDateString()}`,
+      observations: sessionObservations(sim.trades, sim.events ?? [], TF[sim.timeframe].sec),
+      dist: reasonDist(sim.trades),
+    })
     submitReview(emotion, memo.trim())
   }
 

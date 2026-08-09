@@ -64,6 +64,11 @@ export default function History() {
         </div>
       </div>
 
+      <button className="card report-entry" onClick={() => nav('/report')}>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>내 행동 리포트</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
+      </button>
+
       <div className="filter-chips">
         {labels.map((l) => (
           <button key={l} className={filter === l ? 'filter-chip active' : 'filter-chip'} onClick={() => setFilter(l)}>

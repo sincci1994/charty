@@ -39,7 +39,8 @@ export default function Shell({ children }: { children: ReactNode }) {
       {!onSim && (
         <nav className="tabbar">
           {TABS.map((t) => {
-            const active = t.to === '/' ? pathname === '/' : pathname.startsWith(t.to)
+            const active = t.to === '/' ? pathname === '/'
+              : pathname.startsWith(t.to) || (t.to === '/history' && pathname.startsWith('/report'))
             return (
               <Link key={t.to} href={t.to} className={active ? 'active' : ''}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
