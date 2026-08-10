@@ -40,6 +40,16 @@ describe('newsFollowups', () => {
     ]
     expect(newsFollowups(ev)).toEqual({ views: 3, changes: 1, cancels: 1, riskEdits: 0 })
   })
+  it('뉴스 다음의 재무 열람(fund)은 건너뛰고 그 다음 행동으로 판단', () => {
+    const ev: SimEvent[] = [
+      { ts: 0, k: 'news' },
+      { ts: H, k: 'fund' },
+      { ts: 2 * H, k: 'sl', v: 90 }, // fund를 건너뛰고 변경으로 집계
+      { ts: 3 * H, k: 'news' },
+      { ts: 4 * H, k: 'fund' }, // 이후 행동 없음 = 유지
+    ]
+    expect(newsFollowups(ev)).toEqual({ views: 2, changes: 1, cancels: 0, riskEdits: 1 })
+  })
 })
 
 describe('slExecution', () => {

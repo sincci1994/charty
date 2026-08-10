@@ -31,6 +31,7 @@ interface State {
   cancelOrder: (id: string) => void
   setRisk: (kind: 'sl' | 'tp', value: number) => void
   logNewsView: () => void
+  logFundView: () => void
   joinWaitlist: () => void
   endNow: () => void
   discardSim: () => void
@@ -151,6 +152,14 @@ export const useStore = create<State>()(
         if (!activeSim || activeSim.done) return
         const sim = structuredClone(activeSim)
         ;(sim.events ??= []).push({ ts: candles[sim.cursor]?.ts ?? 0, k: 'news' })
+        set({ activeSim: sim })
+      },
+
+      logFundView: () => {
+        const { activeSim, candles } = get()
+        if (!activeSim || activeSim.done) return
+        const sim = structuredClone(activeSim)
+        ;(sim.events ??= []).push({ ts: candles[sim.cursor]?.ts ?? 0, k: 'fund' })
         set({ activeSim: sim })
       },
 

@@ -72,12 +72,12 @@ export default function CustomStyle() {
         <div style={{ flex: 1, fontSize: 20, fontWeight: 600, letterSpacing: '-0.374px' }}>커스텀 트레이딩 스타일</div>
         {editing && (
           <button onClick={del} style={{ background: 'transparent', color: 'var(--danger)', fontWeight: 600, padding: '6px 4px' }}>
-            Delete
+            삭제
           </button>
         )}
       </header>
 
-      <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.2px', marginTop: 14 }}>Custom Trading Name</div>
+      <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.2px', marginTop: 14 }}>스타일 이름</div>
       <input
         type="text"
         value={name}
@@ -86,7 +86,7 @@ export default function CustomStyle() {
         style={{ height: 48, borderRadius: 12, border: '1px solid var(--hairline)', background: 'var(--card)', fontSize: 15, padding: '0 16px' }}
       />
 
-      <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.2px', marginTop: 10 }}>Trading Period</div>
+      <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.2px', marginTop: 10 }}>연습 기간</div>
       <div className="card" style={{ borderRadius: 16, padding: 16, gap: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <input
@@ -116,7 +116,7 @@ export default function CustomStyle() {
         </div>
       </div>
 
-      <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.2px', marginTop: 10 }}>Candle Timeframe</div>
+      <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.2px', marginTop: 10 }}>캔들 간격</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {TF_CHIPS.map((chip) => (
           <button

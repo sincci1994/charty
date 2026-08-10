@@ -89,7 +89,7 @@ export default function PracticeStyle() {
 
       {/* ponytail: 디자인의 fixed 하단 CTA 바는 플로팅 탭바와 겹쳐 생략 — 페이지 흐름 내 배치 */}
       <button className={`pill pill-full pill-primary cta${loading ? ' pulse' : ''}`} style={{ marginTop: 12 }} disabled={!sel || loading} onClick={start}>
-        Start Simulation
+        시뮬레이션 시작
       </button>
       {!sel && <div className="dim center" style={{ fontSize: 12 }}>트레이딩 스타일을 선택해주세요</div>}
     </div>

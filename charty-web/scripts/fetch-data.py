@@ -78,6 +78,92 @@ save("candle-counts.json", json.dumps(counts))
 print("candle-counts.json:", counts)
 
 
+# ── 재무 (SEC EDGAR companyfacts, 키 불필요 — R10 재무 탭) ─────────────────
+# point-in-time 원칙: 같은 기간의 중복 공시(10-K/A·비교표시)는 최초 filed만 채택 —
+# filed가 곧 앱의 노출 기준(공시 전 분기는 시뮬에서 미래 정보)이므로 원본 공시가 정답.
+SEC_UA = {"User-Agent": "charty data pipeline (sincci1994@gmail.com)"}
+FUND_TICKERS = ["AAPL", "NVDA", "TSLA", "MSFT"]  # ETF(QQQ·SPY)는 companyfacts 없음
+REV_TAGS = ["Revenues", "SalesRevenueNet", "RevenueFromContractWithCustomerExcludingAssessedTax"]  # 회계기준 변천(ASC 606 등)으로 태그가 갈림 — 병합
+
+
+def edgar_quarters(cik, splits):
+    """분기 재무 [[filedTs, endTs, rev, opInc, epsAdj], ...] endTs 오름차순.
+    epsAdj는 분할 조정(기간 이후 분할비로 나눔) — 캔들이 yfinance 조정가라 기준을 맞춰야 PER이 성립.
+    가정: '기간말~공시' 사이에 낀 분할(ASC 260 소급조정) 미처리 — 4종목 이력엔 없음, 종목 추가 시 재검토."""
+    r = requests.get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json", headers=SEC_UA, timeout=60)
+    r.raise_for_status()
+    gaap = r.json()["facts"]["us-gaap"]
+
+    def entries(tags, unit):
+        pool = {}  # (start, end) -> (filed, val) — filed 최솟값(최초 공시)
+        for tag in tags:
+            for e in gaap.get(tag, {}).get("units", {}).get(unit, []):
+                if e.get("start") and e.get("end") and e.get("val") is not None and e.get("filed"):
+                    k = (e["start"], e["end"])
+                    if k not in pool or e["filed"] < pool[k][0]:
+                        pool[k] = (e["filed"], e["val"])
+        # fp/form은 못 믿음(fp:"Q3"에 9개월 누적이 섞여 있음) — 기간 길이로 분기/연간 판별
+        q, fy = {}, {}  # end -> (filed, val)
+        for (start, end), fv in pool.items():
+            days = (pd.Timestamp(end) - pd.Timestamp(start)).days
+            if 70 <= days <= 100:
+                q[end] = fv
+            elif 340 <= days <= 380:
+                fy[(start, end)] = fv
+        # Q4 파생: 연간 − 회계연도 내 분기 3개 (EPS는 가중평균 주식수 차이로 근사치)
+        for (start, end), (filed, val) in fy.items():
+            if end in q:
+                continue
+            inside = [v for e2, (_, v) in q.items() if start <= e2 < end]
+            if len(inside) == 3:
+                q[end] = (filed, val - sum(inside))
+        return q
+
+    rev = entries(REV_TAGS, "USD")
+    op = entries(["OperatingIncomeLoss"], "USD")
+    eps = entries(["EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted"], "USD/shares")  # 적자기(TSLA 초기)는 Basic=Diluted 통합 태그로 공시
+    rows = []
+    for end in sorted(set(rev) | set(op) | set(eps)):
+        filed = min(m[end][0] for m in (rev, op, eps) if end in m)
+        factor = 1.0
+        for d, ratio in splits.items():  # 기간 이후 분할만 누적
+            if d.date() > pd.Timestamp(end).date():
+                factor *= float(ratio)
+        rows.append([
+            int(pd.Timestamp(filed, tz="UTC").timestamp()), int(pd.Timestamp(end, tz="UTC").timestamp()),
+            int(rev[end][1]) if end in rev else None,
+            int(op[end][1]) if end in op else None,
+            round(eps[end][1] / factor, 4) if end in eps else None,
+        ])
+    return rows
+
+
+try:
+    cikmap = {v["ticker"]: v["cik_str"] for v in requests.get(
+        "https://www.sec.gov/files/company_tickers.json", headers=SEC_UA, timeout=60).json().values()}
+    fund = {}
+    for sym in FUND_TICKERS:
+        rows = edgar_quarters(cikmap[sym], yf.Ticker(sym).splits)
+        # 검산 — 실패 시 raise로 저장을 막음 (어제의 좋은 데이터 보존). XBRL은 ~2009년부터라 17년 × 4분기 기대
+        assert len(rows) >= 45, f"{sym}: rows={len(rows)}"
+        assert all(x[0] > x[1] for x in rows), f"{sym}: filed <= end"
+        assert all(a[1] < b[1] for a, b in zip(rows, rows[1:])), f"{sym}: not sorted"
+        for a, b in zip(rows, rows[1:]):  # 분기 연속성 — 태그 전환 경계에서 끊기면 여기 찍힘 (경고만)
+            if b[1] - a[1] > 150 * 86400:
+                print(f"  {sym} 분기 갭: {pd.Timestamp(a[1], unit='s').date()} → {pd.Timestamp(b[1], unit='s').date()}")
+        fund[sym] = rows
+        time.sleep(0.3)  # SEC fair access(10req/s)에 여유
+    # 분할 조정 카나리아 — as-filed 희석EPS ÷ 누적 분할비 (AAPL 7:1 '14.06 + 4:1 '20.08)
+    aapl = {x[1]: x[4] for x in fund["AAPL"]}
+    for end, want in [("2015-06-27", 1.85 / 4), ("2012-12-29", 13.81 / 28)]:
+        got = aapl.get(int(pd.Timestamp(end, tz="UTC").timestamp()))
+        assert got is not None and abs(got - want) < 0.01, f"AAPL {end} epsAdj={got}, want≈{round(want, 4)}"
+    save("fundamentals.json", json.dumps(fund, separators=(",", ":")))
+    print("fundamentals.json:", {k: len(v) for k, v in fund.items()})
+except Exception as e:  # EDGAR 장애·스키마 드리프트 — 재무만 건너뛰고 나머지 파이프라인 계속
+    print("fundamentals 수집 실패 — 건너뜀:", repr(e))
+
+
 # ── 경제지표 (FRED fredgraph.csv — API 키 불필요) ──────────────────────────
 FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={}"
 

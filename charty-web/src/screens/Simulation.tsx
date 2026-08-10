@@ -2,14 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNav } from '../lib/nav'
 import Chart, { BOL_COLOR, EMA_COLORS, type IndicatorShow, type PriceLineSpec } from '../components/Chart'
 import IndicatorSheet, { DEFAULT_CFG, type IndCfg } from '../components/IndicatorSheet'
+import FundPanel from '../components/FundPanel'
 import NewsPanel from '../components/NewsPanel'
 import OrderSheet from '../components/OrderSheet'
 import RiskSheet from '../components/RiskSheet'
 import { simProgress, useStore } from '../store'
-import { LOOKBACK, TF, bollinger, ema, fmtW, loadCandles, loadEcon, loadNewsArchive, resampleCandles, rsi, styleLabel } from '../lib/data'
+import { LOOKBACK, TF, bollinger, ema, fmtW, loadCandles, loadEcon, loadFundamentals, loadNewsArchive, resampleCandles, rsi, styleLabel } from '../lib/data'
 import { equity } from '../lib/engine'
 import type { Headline } from '../lib/data'
-import type { Candle, EconIndicator, Timeframe } from '../types'
+import type { Candle, EconIndicator, FundQuarter, Timeframe } from '../types'
 
 const TF_CHIPS = Object.keys(TF) as Timeframe[]
 const IND_KEYS = ['ema', 'bol', 'rsi', 'vol'] as const
@@ -25,7 +26,7 @@ function progressText(pct: number) {
 
 export default function Simulation() {
   const nav = useNav()
-  const { activeSim: sim, candles, nextCandle, endNow, cancelOrder, resume, logNewsView } = useStore()
+  const { activeSim: sim, candles, nextCandle, endNow, cancelOrder, resume, logNewsView, logFundView } = useStore()
   const [show, setShow] = useState<IndicatorShow>({ ema: true, bol: false, rsi: false, vol: true })
   const [cfg, setCfg] = useState<IndCfg>(DEFAULT_CFG)
   const [indOpen, setIndOpen] = useState(false)
@@ -33,14 +34,18 @@ export default function Simulation() {
   const [riskEdit, setRiskEdit] = useState<'sl' | 'tp' | null>(null)
   const [viewTf, setViewTf] = useState<Timeframe | null>(null) // null = 세션 TF
   const [extra, setExtra] = useState<Partial<Record<Timeframe, Candle[] | 'missing'>>>({}) // 잘게 보기용 파일 캐시
-  const [tab, setTab] = useState<'chart' | 'news'>('chart')
+  const [tab, setTab] = useState<'chart' | 'news' | 'fund'>('chart')
   const [econ, setEcon] = useState<EconIndicator[] | null>(null)
   const [headlines, setHeadlines] = useState<Headline[] | undefined>()
+  const [fund, setFund] = useState<Record<string, FundQuarter[]> | null>(null)
   useEffect(() => {
-    if (tab !== 'news') return
-    if (!econ) loadEcon().then(setEcon).catch(() => setEcon([]))
-    if (!headlines) loadNewsArchive().then(setHeadlines).catch(() => setHeadlines([]))
-  }, [tab, econ, headlines])
+    if (tab === 'news') {
+      if (!econ) loadEcon().then(setEcon).catch(() => setEcon([]))
+      if (!headlines) loadNewsArchive().then(setHeadlines).catch(() => setHeadlines([]))
+    } else if (tab === 'fund' && !fund) {
+      loadFundamentals().then(setFund).catch(() => setFund({})) // 실패(파일 미배포 등) 시 빈 상태로만
+    }
+  }, [tab, econ, headlines, fund])
   const endDialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -196,11 +201,12 @@ export default function Simulation() {
           </svg>
         </button>
         <div className="sim-tabs">
-          <button className={`sim-tab${tab === 'chart' ? ' active' : ''}`} onClick={() => setTab('chart')}>Chart</button>
-          <button className={`sim-tab${tab === 'news' ? ' active' : ''}`} onClick={() => { if (tab !== 'news') logNewsView(); setTab('news') }}>News</button>
+          <button className={`sim-tab${tab === 'chart' ? ' active' : ''}`} onClick={() => setTab('chart')}>차트</button>
+          <button className={`sim-tab${tab === 'news' ? ' active' : ''}`} onClick={() => { if (tab !== 'news') logNewsView(); setTab('news') }}>뉴스</button>
+          <button className={`sim-tab${tab === 'fund' ? ' active' : ''}`} onClick={() => { if (tab !== 'fund') logFundView(); setTab('fund') }}>재무</button>
         </div>
         {!sim.done && (
-          <button className="end-btn" onClick={() => endDialogRef.current?.showModal()}>End</button>
+          <button className="end-btn" onClick={() => endDialogRef.current?.showModal()}>종료</button>
         )}
       </div>
 
@@ -214,7 +220,7 @@ export default function Simulation() {
 
       <div className="symbol-row">
         <span className="dim small" style={{ whiteSpace: 'nowrap' }}>{sim.done ? `${sim.symbol} · ` : ''}{styleLabel(sim.style, sim.styleLabel)} · {sim.timeframe}</span>
-        <div className="tf-chips" style={tab === 'news' ? { visibility: 'hidden' } : undefined}>
+        <div className="tf-chips" style={tab !== 'chart' ? { visibility: 'hidden' } : undefined}>
           {TF_CHIPS.map((tf) => {
             const missing = TF[tf].sec < TF[sim.timeframe].sec && extra[tf] === 'missing'
             return (
@@ -245,6 +251,12 @@ export default function Simulation() {
             })}
           />
         )
+      ) : tab === 'fund' ? (
+        !fund ? (
+          <div className="card empty" style={{ minHeight: 320, justifyContent: 'center' }}>불러오는 중…</div>
+        ) : (
+          <FundPanel quarters={fund[sim.symbol]} nowTs={nowTs} price={price} />
+        )
       ) : (
         <div style={{ position: 'relative' }}>
           <Chart
@@ -270,7 +282,7 @@ export default function Simulation() {
       )}
 
       <div className="ind-row">
-        <div className="ind-chips" style={tab === 'news' ? { visibility: 'hidden' } : undefined}>
+        <div className="ind-chips" style={tab !== 'chart' ? { visibility: 'hidden' } : undefined}>
           {IND_KEYS.map((k) => (
             <button
               key={k}
@@ -377,7 +389,7 @@ export default function Simulation() {
         <>
           <div className="trade-bar">
             <div className="trade-bar-info">
-              <span className="dim small">Assets <b className="num" style={{ color: 'var(--text)' }}>{fmtW(eq)}</b></span>
+              <span className="dim small">자산 <b className="num" style={{ color: 'var(--text)' }}>{fmtW(eq)}</b></span>
               <span className="dim small">현재가 <b className="num" style={{ color: 'var(--text)' }}>{fmtW(price)}</b></span>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>

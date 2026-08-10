@@ -1,4 +1,4 @@
-import type { Candle, CustomStyle, EconIndicator, NewsData, Style, Timeframe, Unit } from '../types'
+import type { Candle, CustomStyle, EconIndicator, FundQuarter, NewsData, Style, Timeframe, Unit } from '../types'
 
 export const START_BALANCE = 1_000_000
 
@@ -99,6 +99,16 @@ export async function loadCandles(symbol: string, tf: Timeframe): Promise<Candle
 export async function loadEcon(): Promise<EconIndicator[]> {
   const res = await fetch(base + 'econ.json')
   return res.json()
+}
+
+// R10 분기 재무 (개별주 4종만 — ETF는 키 없음)
+export async function loadFundamentals(): Promise<Record<string, FundQuarter[]>> {
+  const res = await fetch(base + 'fundamentals.json')
+  if (!res.ok) throw new Error(`fundamentals fetch failed: ${res.status}`) // Supabase 404는 JSON 에러 바디 — 캐시 오염 방지
+  const raw: Record<string, [number, number, number | null, number | null, number | null][]> = await res.json()
+  return Object.fromEntries(
+    Object.entries(raw).map(([s, rows]) => [s, rows.map(([filedTs, endTs, rev, opInc, eps]) => ({ filedTs, endTs, rev, opInc, eps }))]),
+  )
 }
 
 export async function loadNews(): Promise<NewsData> {

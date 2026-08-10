@@ -74,7 +74,7 @@ export function postLossRatios(trades: Trade[]): number[] {
 
 // 뉴스 열람 각각에 대해 "바로 다음 이벤트"가 무엇이었는지 (판단 변경 = cancel/sl/tp)
 // 시간 창 대신 이벤트 순서로 정의 — 타임프레임 무관, 결정적. 다음이 또 뉴스거나 신규 주문이면 유지로 본다.
-// slhit은 사용자 행동이 아니므로 건너뜀
+// slhit은 사용자 행동이 아니고, fund(재무 탭)는 정보 열람이지 판단 변경이 아니므로 건너뜀
 export function newsFollowups(events: SimEvent[]): { views: number; changes: number; cancels: number; riskEdits: number } {
   let views = 0
   let changes = 0
@@ -83,7 +83,7 @@ export function newsFollowups(events: SimEvent[]): { views: number; changes: num
   for (let i = 0; i < events.length; i++) {
     if (events[i].k !== 'news') continue
     views++
-    const next = events.slice(i + 1).find((e) => e.k !== 'slhit')
+    const next = events.slice(i + 1).find((e) => e.k !== 'slhit' && e.k !== 'fund')
     if (!next || next.k === 'order' || next.k === 'news') continue
     changes++
     if (next.k === 'cancel') cancels++

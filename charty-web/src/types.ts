@@ -72,14 +72,23 @@ export interface Trade {
 }
 
 // R6 행동 이벤트 — 원시 기록만, 해석은 리포트(R7)에서
-// ts는 시뮬 시간(캔들 ts). k: news=뉴스 탭 열람, cancel=주문 취소, order=주문 제출(ms=시트 열림→제출 소요),
-// sl/tp=리스크 수정(old→v), slhit=손절 계획가 도달
+// ts는 시뮬 시간(캔들 ts). k: news=뉴스 탭 열람, fund=재무 탭 열람(R10), cancel=주문 취소,
+// order=주문 제출(ms=시트 열림→제출 소요), sl/tp=리스크 수정(old→v), slhit=손절 계획가 도달
 export interface SimEvent {
   ts: number
-  k: 'news' | 'cancel' | 'order' | 'sl' | 'tp' | 'slhit'
+  k: 'news' | 'fund' | 'cancel' | 'order' | 'sl' | 'tp' | 'slhit'
   v?: number | null
   old?: number | null
   ms?: number
+}
+
+// R10 분기 재무 (fundamentals.json — SEC EDGAR, 개별주만) — filedTs(공시일)가 시뮬 노출 기준
+export interface FundQuarter {
+  filedTs: number // 공시일 unix초 (자정 UTC)
+  endTs: number // 회계기간 종료일 — YoY 간격 가드용, 화면엔 절대 표시하지 않는다
+  rev: number | null // 매출 USD
+  opInc: number | null // 영업이익 USD
+  eps: number | null // 희석 EPS, 분할 조정(캔들 조정가와 같은 기준)
 }
 
 export interface ActiveSim {
