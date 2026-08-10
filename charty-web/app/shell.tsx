@@ -3,6 +3,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useStore } from '../src/store'
+import { supabase } from '../src/lib/supabase'
+import { syncRecords } from '../src/lib/sync'
 
 const TABS = [
   { to: '/', label: '홈', path: 'M4 11 L12 4 L20 11 V20 H14 V15 H10 V20 H4 Z' },
@@ -14,8 +16,8 @@ const TABS = [
 export default function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  // 시뮬/회고 화면은 자체 하단 바(트레이드 바·CTA 바)를 사용
-  const onSim = ['/sim', '/review'].includes(pathname)
+  // 시뮬/회고는 자체 하단 바 사용, 웰컴은 풀스크린 — 탭바 숨김
+  const onSim = ['/sim', '/review', '/welcome'].includes(pathname)
   const theme = useStore((s) => s.theme)
 
   // localStorage(zustand persist) 값은 서버 프리렌더와 어긋나므로 마운트 후에만 렌더
@@ -27,11 +29,29 @@ export default function Shell({ children }: { children: ReactNode }) {
     if (window.location.hash.startsWith('#/')) router.replace(window.location.hash.slice(1))
   }, [router])
 
+  // R12 첫 방문 게이트 — 새 유저(기록·진행 세션 없음)만 웰컴으로. 홈 경로에서만 개입
+  useEffect(() => {
+    const s = useStore.getState()
+    if (pathname === '/' && !s.welcomed && s.records.length === 0 && !s.activeSim) router.replace('/welcome')
+  }, [pathname, router])
+
   // 수동 테마 선택 시 시스템 설정 대신 data-theme 속성으로 오버라이드
   useEffect(() => {
     if (theme) document.documentElement.dataset.theme = theme
     else delete document.documentElement.dataset.theme
   }, [theme])
+
+  // R11 — 로그인(초기 세션 포함) 시 기록 대사. setTimeout은 supabase 콜백 내 await 데드락 회피(공식 권고)
+  useEffect(() => {
+    if (!supabase) return
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')
+        setTimeout(() => {
+          syncRecords(useStore.getState().records).then((merged) => { if (merged) useStore.getState().applySync(merged) })
+        }, 0)
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [])
 
   return (
     <div className="app">

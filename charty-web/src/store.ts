@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { ActiveSim, Candle, CustomStyle, Side, SimRecord, Style } from './types'
 import { START_BALANCE, STYLES, barsFor, loadCandles, loadTickers, pickRange } from './lib/data'
 import { fillOrders, forceCloseAll, validateOrder } from './lib/engine'
+import { clearRemote, pushRecord } from './lib/sync'
 
 // R5 주문 판단 기록 — reasons 필수(UI에서 강제), sl/tp 선택, ms=시트 열림→제출 소요시간(R6)
 export interface Judgment {
@@ -20,7 +21,9 @@ interface State {
   candles: Candle[] // 활성 시뮬의 전체 캔들 (localStorage에 저장 안 함)
   theme: 'light' | 'dark' | null // null = 시스템 설정 따름
   waitlistAt: number | null // R7 지불의사 게이트 — '미리 신청하기' 클릭 시각
+  welcomed: boolean // R12 — 첫 방문 웰컴 화면을 지나쳤는가 (기록 있는 기존 유저는 게이트가 자동 통과)
   setTheme: (t: 'light' | 'dark') => void
+  setWelcomed: () => void
 
   startSim: (style: string) => Promise<void>
   saveCustom: (c: CustomStyle) => void
@@ -36,6 +39,7 @@ interface State {
   endNow: () => void
   discardSim: () => void
   submitReview: (emotion: string, memo: string) => void
+  applySync: (records: SimRecord[]) => void
   resetAll: () => void
 }
 
@@ -49,7 +53,9 @@ export const useStore = create<State>()(
       candles: [],
       theme: null,
       waitlistAt: null,
+      welcomed: false,
       setTheme: (theme) => set({ theme }),
+      setWelcomed: () => set({ welcomed: true }),
 
       startSim: async (style) => {
         const preset = STYLES[style as Style]
@@ -196,14 +202,21 @@ export const useStore = create<State>()(
           events: activeSim.events,
         }
         set({ balance: activeSim.cash, records: [record, ...records], activeSim: null, candles: [] })
+        void pushRecord(record) // R11 — 로그인 상태면 서버에도 저장 (실패는 다음 대사가 수습)
       },
 
-      resetAll: () => set({ balance: START_BALANCE, activeSim: null, records: [], candles: [] }),
+      // R11 서버 대사 결과 반영 — 병합본으로 교체, 잔고는 최신 기록의 종료 잔고를 따름
+      applySync: (records) => set({ records, balance: records[0]?.endBalance ?? get().balance }),
+
+      resetAll: () => {
+        void clearRemote() // R11 — 서버 기록도 삭제 (안 지우면 다음 로그인 때 부활)
+        set({ balance: START_BALANCE, activeSim: null, records: [], candles: [] })
+      },
     }),
     {
       name: 'charty',
       version: 1,
-      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records, customs: s.customs, theme: s.theme, waitlistAt: s.waitlistAt }),
+      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records, customs: s.customs, theme: s.theme, waitlistAt: s.waitlistAt, welcomed: s.welcomed }),
       // v1 현물 전환: SHORT 포지션·주문이 남은 진행 세션은 UI로 다룰 수 없으므로 폐기 (기록·잔고는 유지)
       migrate: (persisted) => {
         const s = persisted as { activeSim?: ActiveSim | null }

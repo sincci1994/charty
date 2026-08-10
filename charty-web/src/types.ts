@@ -82,6 +82,22 @@ export interface SimEvent {
   ms?: number
 }
 
+// R12 계정 프로필 — 선택지 리터럴이 곧 표시 문자열이자 DB 저장값 (Unit 관례와 동일)
+export const AGE_BANDS = ['10대', '20대', '30대', '40대', '50대', '60대+'] as const
+export const MARKETS = ['국내주식', '해외주식', '코인'] as const
+export const INSTRUMENTS = ['현물', '선물', '옵션'] as const
+export const INVEST_STYLES = ['단타', '스윙', '장기투자'] as const // STYLES 라벨과 동일 어휘
+export const EXPERIENCES = ['입문', '1년 미만', '1~3년', '3년 이상'] as const
+
+export interface Profile {
+  nickname: string
+  ageBand: string | null
+  markets: string[]
+  instruments: string[]
+  style: string | null
+  experience: string | null
+}
+
 // R10 분기 재무 (fundamentals.json — SEC EDGAR, 개별주만) — filedTs(공시일)가 시뮬 노출 기준
 export interface FundQuarter {
   filedTs: number // 공시일 unix초 (자정 UTC)

@@ -1,9 +1,24 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useNav } from '../lib/nav'
 import { useStore } from '../store'
+import { supabase, useSession } from '../lib/supabase'
+import { loadProfile } from '../lib/profile'
+import AuthButtons from '../components/AuthButtons'
+import type { Profile } from '../types'
 
 export default function More() {
+  const nav = useNav()
   const { theme, setTheme, resetAll } = useStore()
+  const session = useSession()
   const dialogRef = useRef<HTMLDialogElement>(null)
+  // undefined = 로딩/미로그인, null = 프로필 미작성 (온보딩 CTA 강조용)
+  const [profile, setProfile] = useState<Profile | null | undefined>(undefined)
+  useEffect(() => {
+    if (!session) return setProfile(undefined)
+    let live = true
+    loadProfile().then((p) => { if (live) setProfile(p) })
+    return () => { live = false }
+  }, [session])
 
   const dark = (theme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark'
 
@@ -17,9 +32,50 @@ export default function More() {
           <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: 'linear-gradient(135deg, #1fb6ff, #3d5cff)', borderRadius: 999, padding: '3px 9px' }}>베타</span>
         </div>
         <div className="dim" style={{ fontSize: 14, lineHeight: 1.55 }}>
-          과거 캔들을 하나씩 넘기며 매매 습관을 훈련하는 모의투자 앱입니다.<br />모든 데이터는 이 브라우저에만 저장됩니다.
+          과거 캔들을 하나씩 넘기며 매매 습관을 훈련하는 모의투자 앱입니다.<br />
+          {session ? '기록이 계정에 동기화되어 다른 기기에서도 이어집니다.' : '모든 데이터는 이 브라우저에만 저장됩니다.'}
         </div>
       </div>
+
+      {supabase && (
+        <>
+          <div className="section-label">계정</div>
+          <div className="card" style={{ gap: 10 }}>
+            {session ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {profile?.nickname ?? session.user.email ?? '로그인됨'}
+                    </div>
+                    <div className="dim" style={{ fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {session.user.app_metadata?.provider === 'kakao' ? '카카오' : 'Google'}
+                      {profile?.nickname && session.user.email ? ` · ${session.user.email}` : ' 계정'} · 기록 자동 저장
+                    </div>
+                  </div>
+                  <button className="pill pill-secondary" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => supabase?.auth.signOut()}>
+                    로그아웃
+                  </button>
+                </div>
+                <button
+                  className={profile === null ? 'pill pill-primary' : 'pill pill-secondary'}
+                  style={{ height: 40, fontSize: 13 }}
+                  onClick={() => nav('/profile')}
+                >
+                  {profile === null ? '프로필 설정하기 — 닉네임·투자 성향' : '프로필 수정'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="dim" style={{ fontSize: 12, lineHeight: 1.5 }}>
+                  로그인하면 연습 기록이 계정에 저장되어<br />다른 기기에서도 이어서 볼 수 있어요.
+                </div>
+                <AuthButtons redirectPath="/more" />
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       <div className="section-label">설정</div>
       <div className="card setting-card">
