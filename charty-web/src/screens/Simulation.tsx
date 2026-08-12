@@ -15,7 +15,11 @@ import type { Candle, EconIndicator, FundQuarter, Timeframe } from '../types'
 const TF_CHIPS = Object.keys(TF) as Timeframe[]
 const IND_KEYS = ['ema', 'bol', 'rsi', 'vol'] as const
 // 종목 숨김(******) 유지 — 회사명이 든 헤드라인은 걸러냄 (ETF는 해당 없음)
-const LEAK_NAMES: Partial<Record<string, string>> = { AAPL: 'apple', NVDA: 'nvidia', TSLA: 'tesla', MSFT: 'microsoft' }
+const LEAK_NAMES: Partial<Record<string, string>> = {
+  AAPL: 'apple', NVDA: 'nvidia', TSLA: 'tesla', MSFT: 'microsoft',
+  // R13 테마주 — 심볼은 단어 경계 매칭(아래 필터), 회사명은 부분 매칭이라 PLUG는 풀네임으로 과필터 방지
+  PLUG: 'plug power', FCEL: 'fuelcell', LCID: 'lucid', RIVN: 'rivian', JOBY: 'joby', IONQ: 'ionq',
+}
 
 function progressText(pct: number) {
   if (pct >= 100) return '모든 캔들이 생성되었습니다!'
@@ -37,13 +41,14 @@ export default function Simulation() {
   const [tab, setTab] = useState<'chart' | 'news' | 'fund'>('chart')
   const [econ, setEcon] = useState<EconIndicator[] | null>(null)
   const [headlines, setHeadlines] = useState<Headline[] | undefined>()
-  const [fund, setFund] = useState<Record<string, FundQuarter[]> | null>(null)
+  // fund 3상태: null=미로드(로딩), 'error'=실패(재시도 버튼 — {}로 삼키면 실패가 '공시 없음'으로 위장됨), 객체=성공
+  const [fund, setFund] = useState<Record<string, FundQuarter[]> | null | 'error'>(null)
   useEffect(() => {
     if (tab === 'news') {
       if (!econ) loadEcon().then(setEcon).catch(() => setEcon([]))
       if (!headlines) loadNewsArchive().then(setHeadlines).catch(() => setHeadlines([]))
-    } else if (tab === 'fund' && !fund) {
-      loadFundamentals().then(setFund).catch(() => setFund({})) // 실패(파일 미배포 등) 시 빈 상태로만
+    } else if (tab === 'fund' && fund === null) {
+      loadFundamentals().then(setFund).catch(() => setFund('error'))
     }
   }, [tab, econ, headlines, fund])
   const endDialogRef = useRef<HTMLDialogElement>(null)
@@ -247,13 +252,21 @@ export default function Simulation() {
             headlines={headlines?.filter((h) => {
               const t = h[1].toLowerCase()
               const name = LEAK_NAMES[sim.symbol]
-              return !t.includes(sim.symbol.toLowerCase()) && (!name || !t.includes(name))
+              // 심볼은 단어 경계 매칭 — 부분 매칭이면 PLUG 세션에서 'plugs'·'unplugged'류 무관 헤드라인까지 사라짐
+              return !new RegExp(`\\b${sim.symbol}\\b`, 'i').test(h[1]) && (!name || !t.includes(name))
             })}
           />
         )
       ) : tab === 'fund' ? (
-        !fund ? (
+        fund === null ? (
           <div className="card empty" style={{ minHeight: 320, justifyContent: 'center' }}>불러오는 중…</div>
+        ) : fund === 'error' ? (
+          <div className="card empty" style={{ minHeight: 320, justifyContent: 'center', gap: 12 }}>
+            재무 정보를 불러오지 못했어요
+            <button className="pill pill-secondary" style={{ padding: '9px 18px', fontSize: 13 }} onClick={() => setFund(null)}>
+              다시 시도
+            </button>
+          </div>
         ) : (
           <FundPanel quarters={fund[sim.symbol]} nowTs={nowTs} price={price} />
         )

@@ -17,7 +17,12 @@ import yfinance as yf
 
 sys.stdout.reconfigure(encoding="utf-8")  # Windows 콘솔(cp949)에서 한글·특수문자 print 크래시 방지
 
-TICKERS = ["QQQ", "SPY", "AAPL", "NVDA", "TSLA", "MSFT"]
+TICKERS = [
+    "QQQ", "SPY", "AAPL", "NVDA", "TSLA", "MSFT",
+    # R13 스토리·테마주 — 단조 우상향 방지용 변동성 종목. 상장 이력이 짧은 종목이 섞이므로
+    # counts는 종목별로 저장하고(candle-counts.json), 앱이 기간에 맞는 종목만 고른다(store.ts startSim)
+    "PLUG", "FCEL", "LCID", "RIVN", "JOBY", "IONQ",
+]
 OUT = Path(__file__).resolve().parent.parent / "public" / "data"
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -48,13 +53,14 @@ def save(name, text):
             time.sleep(5 * (i + 1))
 
 
-counts = {}  # TF별 최소 캔들 수 → candle-counts.json (data.ts의 MAX_BARS 계산에 사용)
+counts = {}  # 종목별·TF별 캔들 수 → candle-counts.json (data.ts가 종목 적합 판정·MAX_BARS 계산에 사용)
+failed = []  # 섹션별 실패 수집 — 좋은 데이터는 다 저장하고 맨 끝에서 exit 1로 CI에 가시화
 
 
 def dump(df, symbol, tf):
     df = df.dropna()
-    if df.empty:  # yfinance는 스로틀 시 예외 없이 빈 DF 반환 — 빈 파일·counts=0으로 좋은 데이터 덮어쓰기 방지
-        raise SystemExit(f"{symbol}_{tf}: empty from yfinance — aborting")
+    if df.empty:  # yfinance는 스로틀·상폐 시 예외 없이 빈 DF 반환 — 빈 파일로 좋은 데이터 덮어쓰기 방지
+        raise ValueError(f"{symbol}_{tf}: empty from yfinance")
     rows = [
         [int(ts.timestamp()), round(float(o), 4), round(float(h), 4),
          round(float(l), 4), round(float(c), 4), int(v)]
@@ -62,34 +68,46 @@ def dump(df, symbol, tf):
             df.index, df["Open"], df["High"], df["Low"], df["Close"], df["Volume"])
     ]
     save(f"{symbol}_{tf}.json", json.dumps(rows, separators=(",", ":")))
-    counts[tf] = min(counts.get(tf, 10**9), len(rows))
+    counts.setdefault(symbol, {})[tf] = len(rows)
     print(f"{symbol}_{tf}: {len(rows)} candles")
 
 
 for sym in TICKERS:
-    t = yf.Ticker(sym)
-    dump(t.history(period="60d", interval="5m"), sym, "5m")  # yfinance 분봉 제한 60일
-    dump(t.history(period="730d", interval="1h"), sym, "1h")
-    dump(t.history(period="20y", interval="1d"), sym, "1d")
-    dump(t.history(period="20y", interval="1wk"), sym, "1w")
+    try:
+        t = yf.Ticker(sym)
+        dump(t.history(period="60d", interval="5m"), sym, "5m")  # yfinance 분봉 제한 60일
+        dump(t.history(period="730d", interval="1h"), sym, "1h")
+        dump(t.history(period="20y", interval="1d"), sym, "1d")
+        dump(t.history(period="20y", interval="1wk"), sym, "1w")
+    except Exception as e:  # 한 종목 실패(상폐·스로틀)가 런 전체를 못 죽이게 — 이 종목만 제외하고 계속
+        print(f"{sym} 캔들 수집 실패 — 제외:", repr(e))
+        counts.pop(sym, None)  # 부분 성공분 카운트 제거 — tickers에서 빠진 종목의 잔재 방지
+        failed.append(sym)
+    time.sleep(1)  # yfinance 스로틀 예방 (12종 × 4콜)
 
-save("tickers.json", json.dumps(TICKERS))
+ok_tickers = [s for s in TICKERS if s not in failed]
+if not ok_tickers:  # 전멸 = yfinance 전면 차단 — 어제 파일(tickers/counts)을 빈 것으로 덮지 않는다
+    raise SystemExit(f"candles: all tickers failed {failed}")
+save("tickers.json", json.dumps(ok_tickers))
 save("candle-counts.json", json.dumps(counts))
-print("candle-counts.json:", counts)
+print("candle-counts.json:", {s: c.get("1d") for s, c in counts.items()}, "(1d)")
 
 
 # ── 재무 (SEC EDGAR companyfacts, 키 불필요 — R10 재무 탭) ─────────────────
 # point-in-time 원칙: 같은 기간의 중복 공시(10-K/A·비교표시)는 최초 filed만 채택 —
 # filed가 곧 앱의 노출 기준(공시 전 분기는 시뮬에서 미래 정보)이므로 원본 공시가 정답.
 SEC_UA = {"User-Agent": "charty data pipeline (sincci1994@gmail.com)"}
-FUND_TICKERS = ["AAPL", "NVDA", "TSLA", "MSFT"]  # ETF(QQQ·SPY)는 companyfacts 없음
+FUND_TICKERS = ["AAPL", "NVDA", "TSLA", "MSFT",  # ETF(QQQ·SPY)는 companyfacts 없음
+                "PLUG", "FCEL", "LCID", "RIVN", "JOBY", "IONQ"]  # R13 테마주도 재무 제공 — '공시 없음' 세션 축소
+MIN_ROWS = {"LCID": 12, "RIVN": 12, "JOBY": 12, "IONQ": 12}  # 2021년 상장 — XBRL 분기 수가 아직 적음 (기본 45)
 REV_TAGS = ["Revenues", "SalesRevenueNet", "RevenueFromContractWithCustomerExcludingAssessedTax"]  # 회계기준 변천(ASC 606 등)으로 태그가 갈림 — 병합
 
 
 def edgar_quarters(cik, splits):
     """분기 재무 [[filedTs, endTs, rev, opInc, epsAdj], ...] endTs 오름차순.
     epsAdj는 분할 조정(기간 이후 분할비로 나눔) — 캔들이 yfinance 조정가라 기준을 맞춰야 PER이 성립.
-    가정: '기간말~공시' 사이에 낀 분할(ASC 260 소급조정) 미처리 — 4종목 이력엔 없음, 종목 추가 시 재검토."""
+    가정: '기간말~공시' 사이에 낀 분할(ASC 260 소급조정) 미처리 — 낀 분기(분할당 최대 1개)의 EPS만
+    이중 조정되는 근사 오차. R13 테마주 역분할(FCEL '19.05 등)이 해당될 수 있으나 한정적이라 수용."""
     r = requests.get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json", headers=SEC_UA, timeout=60)
     r.raise_for_status()
     gaap = r.json()["facts"]["us-gaap"]
@@ -143,25 +161,42 @@ try:
         "https://www.sec.gov/files/company_tickers.json", headers=SEC_UA, timeout=60).json().values()}
     fund = {}
     for sym in FUND_TICKERS:
-        rows = edgar_quarters(cikmap[sym], yf.Ticker(sym).splits)
-        # 검산 — 실패 시 raise로 저장을 막음 (어제의 좋은 데이터 보존). XBRL은 ~2009년부터라 17년 × 4분기 기대
-        assert len(rows) >= 45, f"{sym}: rows={len(rows)}"
-        assert all(x[0] > x[1] for x in rows), f"{sym}: filed <= end"
-        assert all(a[1] < b[1] for a, b in zip(rows, rows[1:])), f"{sym}: not sorted"
-        for a, b in zip(rows, rows[1:]):  # 분기 연속성 — 태그 전환 경계에서 끊기면 여기 찍힘 (경고만)
-            if b[1] - a[1] > 150 * 86400:
-                print(f"  {sym} 분기 갭: {pd.Timestamp(a[1], unit='s').date()} → {pd.Timestamp(b[1], unit='s').date()}")
-        fund[sym] = rows
+        try:
+            rows = edgar_quarters(cikmap[sym], yf.Ticker(sym).splits)
+            # 검산 — 실패 시 이 종목만 제외 (이전 파일 머지가 어제의 좋은 데이터 보존). XBRL은 ~2009년부터
+            assert len(rows) >= MIN_ROWS.get(sym, 45), f"{sym}: rows={len(rows)}"
+            assert all(x[0] > x[1] for x in rows), f"{sym}: filed <= end"
+            assert all(a[1] < b[1] for a, b in zip(rows, rows[1:])), f"{sym}: not sorted"
+            for a, b in zip(rows, rows[1:]):  # 분기 연속성 — 태그 전환 경계에서 끊기면 여기 찍힘 (경고만)
+                if b[1] - a[1] > 150 * 86400:
+                    print(f"  {sym} 분기 갭: {pd.Timestamp(a[1], unit='s').date()} → {pd.Timestamp(b[1], unit='s').date()}")
+            fund[sym] = rows
+        except Exception as e:  # 한 종목 실패(젊은 종목·태그 드리프트)가 전체 재무를 못 죽이게
+            print(f"{sym} 재무 수집 실패 — 제외:", repr(e))
+            failed.append(f"fund:{sym}")
         time.sleep(0.3)  # SEC fair access(10req/s)에 여유
-    # 분할 조정 카나리아 — as-filed 희석EPS ÷ 누적 분할비 (AAPL 7:1 '14.06 + 4:1 '20.08)
-    aapl = {x[1]: x[4] for x in fund["AAPL"]}
-    for end, want in [("2015-06-27", 1.85 / 4), ("2012-12-29", 13.81 / 28)]:
-        got = aapl.get(int(pd.Timestamp(end, tz="UTC").timestamp()))
-        assert got is not None and abs(got - want) < 0.01, f"AAPL {end} epsAdj={got}, want≈{round(want, 4)}"
+    # 이전 파일과 머지 — 오늘 실패한 종목은 어제 데이터 유지 (재무는 분기 단위라 하루 이틀 낡아도 무해)
+    prev_file = OUT / "fundamentals.json"
+    prev = json.loads(prev_file.read_text(encoding="utf-8")) if prev_file.exists() else {}
+    if not prev and SUPABASE_URL:  # CI는 매번 새 체크아웃 — Storage의 기존본을 이어받음 (news-archive와 동일 패턴)
+        r = requests.get(f"{SUPABASE_URL}/storage/v1/object/public/data/fundamentals.json", timeout=60)
+        if r.ok:
+            prev = r.json()
+        elif r.status_code not in (400, 404):  # 5xx/429를 '파일 없음'으로 오인하면 머지 없이 축소본이 완전본을 덮음
+            raise RuntimeError(f"fundamentals resume GET failed: {r.status_code}")  # 바깥 except가 잡아 저장만 건너뜀
+    fund = {**prev, **fund}
+    # 분할 조정 카나리아 — as-filed 희석EPS ÷ 누적 분할비 (AAPL 7:1 '14.06 + 4:1 '20.08).
+    # AAPL이 오늘분·이전본 모두에 없으면(이중 실패) 검산만 생략하고 저장은 진행 — 실패는 failed에 이미 기록
+    if "AAPL" in fund:
+        aapl = {x[1]: x[4] for x in fund["AAPL"]}
+        for end, want in [("2015-06-27", 1.85 / 4), ("2012-12-29", 13.81 / 28)]:
+            got = aapl.get(int(pd.Timestamp(end, tz="UTC").timestamp()))
+            assert got is not None and abs(got - want) < 0.01, f"AAPL {end} epsAdj={got}, want≈{round(want, 4)}"
     save("fundamentals.json", json.dumps(fund, separators=(",", ":")))
     print("fundamentals.json:", {k: len(v) for k, v in fund.items()})
 except Exception as e:  # EDGAR 장애·스키마 드리프트 — 재무만 건너뛰고 나머지 파이프라인 계속
     print("fundamentals 수집 실패 — 건너뜀:", repr(e))
+    failed.append("fundamentals")
 
 
 # ── 경제지표 (FRED fredgraph.csv — API 키 불필요) ──────────────────────────
@@ -336,3 +371,5 @@ while week + pd.Timedelta(days=7) <= now:
 flush()
 print("news-archive.json:", len(archive), "headlines")
 print("done ->", OUT)
+if failed:  # 좋은 섹션은 위에서 전부 저장 완료 — 실패만 모아 CI를 빨갛게 (Actions에서 즉시 보임)
+    raise SystemExit(f"수집 실패 항목: {failed}")

@@ -140,4 +140,9 @@ export interface SimRecord {
   memo: string
   trades?: Trade[] // optional: 도입 이전 기록엔 없음
   events?: SimEvent[] // optional: R6 도입 이전 기록엔 없음
+  // R13 누적 차트시간 — 전부 optional: 도입 이전 기록엔 없음(집계에서 제외)
+  elapsedBars?: number // cursor - startIndex, 실제 플레이한 캔들 수
+  early?: boolean // 중간 정리(조기 종료) 여부 — cursor < endIndex
+  startTs?: number // 시작 캔들 ts (달력 시간 합산용)
+  endTs?: number // 마지막으로 플레이한 캔들 ts
 }

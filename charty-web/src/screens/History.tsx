@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNav } from '../lib/nav'
 import AssetChart from '../components/AssetChart'
-import { START_BALANCE, fmtW, styleLabel } from '../lib/data'
+import { START_BALANCE, fmtDur, fmtW, styleLabel } from '../lib/data'
+import { cumulativeSimTime } from '../lib/report'
 import { useStore } from '../store'
 import type { SimRecord } from '../types'
 
@@ -38,6 +39,7 @@ export default function History() {
   const series = [START_BALANCE, ...asc.map((r) => r.endBalance)]
   const winRate = Math.round((records.filter((r) => r.pnlPct > 0).length / records.length) * 100)
   const avgPct = records.reduce((s, r) => s + r.pnlPct, 0) / records.length
+  const simTime = cumulativeSimTime(records) // R13 — 차트 시간 필드가 있는 기록만 합산
 
   const labels = ['전체', ...new Set(records.map(label))]
   const shown = records.filter((r) => filter === '전체' || label(r) === filter)
@@ -61,7 +63,11 @@ export default function History() {
         <AssetChart values={series} startLabel={new Date(asc[0].endedAt).toLocaleDateString()} />
         <div className="dim num" style={{ fontSize: 12, marginTop: 4 }}>
           총 {records.length}회 연습 · 승률 {winRate}% · 평균 {avgPct >= 0 ? '+' : ''}{avgPct.toFixed(1)}%
+          {simTime.sec > 0 && <> · 차트 시간 {fmtDur(simTime.sec)}</>}
         </div>
+        {simTime.sec > 0 && simTime.excluded > 0 && (
+          <div className="dim" style={{ fontSize: 11 }}>이전 기록 {simTime.excluded}회는 시간 집계에서 제외돼요</div>
+        )}
       </div>
 
       <button className="card report-entry" onClick={() => nav('/report')}>

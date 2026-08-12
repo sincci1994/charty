@@ -41,23 +41,46 @@ const BARS_PER_DAY: Record<Timeframe, number> = { '5m': 78, '15m': 26, '30m': 13
 export const EMA_WARMUP = 200 // EMA200이 유효해지는 데 필요한 앞쪽 캔들 수
 export const LOOKBACK = 60 // 시작 시 차트에 미리 보여줄 과거 캔들 수
 
-// 실측 최소 캔들 수(candle-counts.json — fetch-data.py가 생성) − pickRange 최소 여유.
-// 파이프라인이 매일 갱신하므로 빌드타임 import 대신 런타임 fetch (모듈 캐시로 1회만).
-// 15m/30m/4h은 파일 없이 기본 TF에서 리샘플하므로 개수도 나눗셈으로 파생 (floor라 약간 보수적)
-let maxBarsCache: Record<Timeframe, number> | null = null
-export async function loadMaxBars(): Promise<Record<Timeframe, number>> {
-  if (maxBarsCache) return maxBarsCache
+// 실측 캔들 수(candle-counts.json — fetch-data.py가 생성): R13부터 종목별 {SYM: {tf: n}} 형식.
+// 15m/30m/4h은 파일 없이 기본 TF에서 리샘플하므로 개수도 나눗셈으로 파생 (floor라 약간 보수적).
+// 구(평면 {tf: n}) 형식이면 null — 종목별 정보가 없으므로 소비처가 기존 동작으로 폴백
+// (앱 배포가 파이프라인 실행보다 앞서는 창 커버)
+export type SymbolCounts = Record<string, Partial<Record<Timeframe, number>>>
+export function normalizeCounts(raw: Record<string, unknown>): SymbolCounts | null {
+  if (Object.keys(raw).length === 0 || typeof Object.values(raw)[0] === 'number') return null
+  return Object.fromEntries(Object.entries(raw as SymbolCounts).map(([sym, c]) => [sym, {
+    ...c, '15m': Math.floor((c['5m'] ?? 0) / 3), '30m': Math.floor((c['5m'] ?? 0) / 6), '4h': Math.floor((c['1h'] ?? 0) / 4),
+  }]))
+}
+
+// 파이프라인이 매일 갱신하므로 빌드타임 import 대신 런타임 fetch (모듈 캐시로 1회만)
+let countsRaw: Record<string, unknown> | null = null
+async function loadCountsRaw(): Promise<Record<string, unknown>> {
+  if (countsRaw) return countsRaw
   const res = await fetch(base + 'candle-counts.json')
-  // Supabase 404는 JSON 에러 바디라 json()이 성공해버림 — NaN 캐시 방지 (실패 시 소비처가 MAX_CANDLES 폴백)
+  // Supabase 404는 JSON 에러 바디라 json()이 성공해버림 — 오염 캐시 방지 (실패 시 소비처가 폴백)
   if (!res.ok) throw new Error(`candle-counts fetch failed: ${res.status}`)
-  const counts: Record<string, number> = await res.json()
-  const full = {
-    ...counts, '15m': Math.floor(counts['5m'] / 3), '30m': Math.floor(counts['5m'] / 6), '4h': Math.floor(counts['1h'] / 4),
-  }
-  maxBarsCache = Object.fromEntries(
+  countsRaw = await res.json()
+  return countsRaw!
+}
+
+// 종목별 캔들 수 — startSim의 종목 적합 필터용. null = 구형식(필터 생략)
+export async function loadCandleCounts(): Promise<SymbolCounts | null> {
+  return normalizeCounts(await loadCountsRaw())
+}
+
+export async function loadMaxBars(): Promise<Record<Timeframe, number>> {
+  const raw = await loadCountsRaw()
+  const per = normalizeCounts(raw)
+  // 종목별 형식: TF별 종목 간 최대값 — 커스텀 상한은 최장 이력 종목 기준, 못 미치는 종목은
+  // startSim 적합 필터가 거른다 (짧은 신규 종목 하나가 전체 상한을 깎던 문제 제거).
+  // 구(평면) 형식: 전 종목 최소값 그대로 (기존 동작)
+  const full = per
+    ? Object.fromEntries((Object.keys(TF) as Timeframe[]).map((tf) => [tf, Math.max(0, ...Object.values(per).map((c) => c[tf] ?? 0))]))
+    : { ...(raw as Record<string, number>), '15m': Math.floor((raw['5m'] as number) / 3), '30m': Math.floor((raw['5m'] as number) / 6), '4h': Math.floor((raw['1h'] as number) / 4) }
+  return Object.fromEntries(
     Object.entries(full).map(([tf, n]) => [tf, n - EMA_WARMUP - LOOKBACK]),
   ) as Record<Timeframe, number>
-  return maxBarsCache
 }
 export const MIN_BARS = 10
 
@@ -75,6 +98,15 @@ export function estTime(bars: number): string {
 // 1000 미만(달러대 종목)은 소수 2자리 유지, 이상은 정수
 export const fmtW = (v: number) =>
   `₩${v.toLocaleString(undefined, { maximumFractionDigits: Math.abs(v) < 1000 ? 2 : 0 })}`
+
+// 차트 경과시간(달력 기준, 초) 사람 표기 — "약 1년 3개월"·"약 3개월 12일"·"약 5일"·"약 6시간" (0 나머지 생략)
+export function fmtDur(sec: number): string {
+  const d = Math.floor(sec / 86400)
+  if (d >= 365) { const y = Math.floor(d / 365); const m = Math.floor((d % 365) / 30); return `약 ${y}년${m ? ` ${m}개월` : ''}` }
+  if (d >= 30) { const m = Math.floor(d / 30); const r = d % 30; return `약 ${m}개월${r ? ` ${r}일` : ''}` }
+  if (d >= 1) return `약 ${d}일`
+  return `약 ${Math.max(1, Math.round(sec / 3600))}시간`
+}
 
 // Supabase Storage CDN 등 외부 데이터 소스 — 미설정 시 로컬 public/data 폴백 (dev·테스트)
 // replace: 끝 슬래시 유무 무관하게 동작 (Vercel 환경변수 오타 방지)

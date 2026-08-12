@@ -8,7 +8,7 @@ import type { Profile } from '../types'
 
 export default function More() {
   const nav = useNav()
-  const { theme, setTheme, resetAll } = useStore()
+  const { theme, setTheme, resetAll, syncError } = useStore()
   const session = useSession()
   const dialogRef = useRef<HTMLDialogElement>(null)
   // undefined = 로딩/미로그인, null = 프로필 미작성 (온보딩 CTA 강조용)
@@ -50,7 +50,7 @@ export default function More() {
                     </div>
                     <div className="dim" style={{ fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {session.user.app_metadata?.provider === 'kakao' ? '카카오' : 'Google'}
-                      {profile?.nickname && session.user.email ? ` · ${session.user.email}` : ' 계정'} · 기록 자동 저장
+                      {profile?.nickname && session.user.email ? ` · ${session.user.email}` : ' 계정'} · {syncError ? '동기화 실패 — 새로고침 시 재시도' : '기록 자동 저장'}
                     </div>
                   </div>
                   <button className="pill pill-secondary" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => supabase?.auth.signOut()}>

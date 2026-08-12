@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SimEvent, SimRecord, Trade } from '../types'
-import { cumulativeReport, episodes, newsFollowups, postLossRatios, sessionObservations, slExecution } from './report'
+import { cumulativeReport, cumulativeSimTime, episodes, newsFollowups, postLossRatios, sessionObservations, slExecution } from './report'
 
 const H = 3600 // 1h 타임프레임 초
 const buy = (ts: number, price: number, qty: number, extra: Partial<Trade> = {}): Trade => ({ ts, side: 'OPEN_LONG', price, qty, reasons: ['기술적'], ...extra })
@@ -113,5 +113,25 @@ describe('cumulativeReport', () => {
     const m4 = r.metrics.find((m) => m.title === '뉴스 후 판단 변경률')!
     expect(m4.locked).toBe(false)
     expect(m4.value).toBe('20%')
+  })
+})
+
+describe('cumulativeSimTime', () => {
+  const D = 86400
+  const rec = (extra: Partial<SimRecord>): SimRecord =>
+    ({ id: 'x', endedAt: 0, style: 'SWING', symbol: 'QQQ', startBalance: 1e6, endBalance: 1e6, pnlPct: 0, tradeCount: 0, emotion: '😐', memo: '', ...extra })
+
+  it('startTs·endTs 있는 기록만 합산, 없는 R13 이전 기록은 excluded', () => {
+    const { sec, excluded } = cumulativeSimTime([
+      rec({ startTs: 0, endTs: 3 * D }),
+      rec({ startTs: 10 * D, endTs: 12 * D, early: true }), // 조기 종료 — endTs가 이미 플레이한 구간까지만
+      rec({}),
+    ])
+    expect(sec).toBe(5 * D)
+    expect(excluded).toBe(1)
+  })
+
+  it('빈 기록이면 0', () => {
+    expect(cumulativeSimTime([])).toEqual({ sec: 0, excluded: 0 })
   })
 })

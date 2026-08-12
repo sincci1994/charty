@@ -21,6 +21,19 @@ export interface Metric {
   basis?: string
 }
 
+// R13 누적 차트시간 — "재산을 모으는 데 걸린 (차트) 시간". 달력 기준(endTs−startTs, 주말·밤 포함),
+// 조기 종료 세션은 실제 플레이한 구간까지만 (submitReview가 cursor 시점의 endTs를 기록).
+// excluded = 시간 필드가 없는 기록 수 (R13 이전 기록 — 시작/종료 캔들 미저장이라 소급 불가)
+export function cumulativeSimTime(records: SimRecord[]): { sec: number; excluded: number } {
+  let sec = 0
+  let excluded = 0
+  for (const r of records) {
+    if (r.startTs != null && r.endTs != null) sec += Math.max(0, r.endTs - r.startTs)
+    else excluded++
+  }
+  return { sec, excluded }
+}
+
 // ── 기초 집계 ──────────────────────────────────────────────
 
 // 포지션 에피소드: 첫 매수(0→보유)부터 전량 청산(보유→0)까지. LONG(현물)만 — 구버전 SHORT 거래는 무시

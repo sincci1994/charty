@@ -3,8 +3,13 @@ import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useStore } from '../src/store'
+import { START_BALANCE } from '../src/lib/data'
 import { supabase } from '../src/lib/supabase'
-import { syncRecords } from '../src/lib/sync'
+import { applyServer, initStateSync, pickState, pullState, pushState, syncRecords } from '../src/lib/sync'
+
+// 계정 전환 와이프 진행 중 — supabase가 INITIAL_SESSION·SIGNED_IN을 연달아 발화해 핸들러가
+// 두 번 큐잉되므로, 두 번째 핸들러가 와이프 이후 가드를 통과해 이전 계정 데이터를 push하는 경합 차단
+let wiping = false
 
 const TABS = [
   { to: '/', label: '홈', path: 'M4 11 L12 4 L20 11 V20 H14 V15 H10 V20 H4 Z' },
@@ -41,14 +46,53 @@ export default function Shell({ children }: { children: ReactNode }) {
     else delete document.documentElement.dataset.theme
   }, [theme])
 
-  // R11 — 로그인(초기 세션 포함) 시 기록 대사. setTimeout은 supabase 콜백 내 await 데드락 회피(공식 권고)
+  // R11·R13 — 로그인(초기 세션 포함) 시 기록 대사 + state pull. setTimeout은 supabase 콜백 내 await 데드락 회피(공식 권고)
   useEffect(() => {
     if (!supabase) return
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')
-        setTimeout(() => {
-          syncRecords(useStore.getState().records).then((merged) => { if (merged) useStore.getState().applySync(merged) })
-        }, 0)
+    initStateSync() // 변이 감지 → 디바운스 push 구독 (1회)
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
+      setTimeout(async () => {
+        if (wiping) return
+        // 계정 전환 가드 — 이전 계정의 로컬 잔여 데이터가 새 계정 user_id로 push되기 전에 와이프.
+        // 로그아웃 시엔 안 지움(로그아웃 로컬 사용은 의도된 기능), 같은 계정 재로그인은 기존처럼 병합
+        if (session) {
+          const prev = localStorage.getItem('charty:uid')
+          if (prev && prev !== session.user.id) {
+            wiping = true
+            // reload의 내비게이션 커밋 전에 도착하는 늦은 set()이 persist를 재기록해도
+            // 초기 상태만 남도록 스토어부터 리셋 (applyServer — 구독자의 스탬프·푸시 차단)
+            applyServer(() => useStore.setState({
+              balance: START_BALANCE, activeSim: null, records: [], customs: [], candles: [],
+              waitlistAt: null, welcomed: false, stateUpdatedAt: 0,
+            }))
+            localStorage.removeItem('charty')
+            localStorage.setItem('charty:uid', session.user.id)
+            location.reload()
+            return
+          }
+          localStorage.setItem('charty:uid', session.user.id)
+        }
+        const merged = await syncRecords(useStore.getState().records)
+        if (merged) applyServer(() => useStore.getState().applySync(merged))
+        if (!session) return
+        const pulled = await pullState()
+        useStore.getState().setSyncError(pulled === 'error')
+        if (pulled === 'error') return
+        const local = useStore.getState()
+        if (pulled && pulled.updatedAt > local.stateUpdatedAt) {
+          applyServer(() => local.applyState(pulled.data, pulled.updatedAt)) // 서버가 더 새로움 — LWW 반영
+        } else if (pulled && pulled.updatedAt < local.stateUpdatedAt) {
+          void pushState(pickState(local), local.stateUpdatedAt) // 로그아웃·오프라인 중 변이 재푸시
+        } else if (!pulled) {
+          // 행 없음 — 기기 고유 상태(진행 세션·커스텀·게이트)가 있을 때만 시드.
+          // balance는 records에서 파생 가능해 정보가 아님: 파생값만으로 행을 만들면
+          // 새 기기의 빈 시드가 다른 기기의 실데이터(스탬프 0인 pre-R13 로컬)를 이겨버린다
+          const slice = pickState(local)
+          if (slice.activeSim || slice.customs.length > 0 || slice.welcomed || slice.waitlistAt != null)
+            void pushState(slice, local.stateUpdatedAt || Date.now())
+        }
+      }, 0)
     })
     return () => sub.subscription.unsubscribe()
   }, [])

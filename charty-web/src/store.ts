@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ActiveSim, Candle, CustomStyle, Side, SimRecord, Style } from './types'
-import { START_BALANCE, STYLES, barsFor, loadCandles, loadTickers, pickRange } from './lib/data'
+import { EMA_WARMUP, LOOKBACK, START_BALANCE, STYLES, barsFor, loadCandleCounts, loadCandles, loadTickers, pickRange } from './lib/data'
 import { fillOrders, forceCloseAll, validateOrder } from './lib/engine'
 import { clearRemote, pushRecord } from './lib/sync'
+import type { SyncedState } from './lib/sync'
 
 // R5 주문 판단 기록 — reasons 필수(UI에서 강제), sl/tp 선택, ms=시트 열림→제출 소요시간(R6)
 export interface Judgment {
@@ -22,6 +23,8 @@ interface State {
   theme: 'light' | 'dark' | null // null = 시스템 설정 따름
   waitlistAt: number | null // R7 지불의사 게이트 — '미리 신청하기' 클릭 시각
   welcomed: boolean // R12 — 첫 방문 웰컴 화면을 지나쳤는가 (기록 있는 기존 유저는 게이트가 자동 통과)
+  stateUpdatedAt: number // R13 — 동기화 슬라이스(SyncedState)의 마지막 변이 시각, 기기 간 LWW 비교 기준
+  syncError: boolean // R13 — 마지막 pull 실패 여부 (비영속, More 문구용)
   setTheme: (t: 'light' | 'dark') => void
   setWelcomed: () => void
 
@@ -40,6 +43,8 @@ interface State {
   discardSim: () => void
   submitReview: (emotion: string, memo: string) => void
   applySync: (records: SimRecord[]) => void
+  applyState: (data: SyncedState, updatedAt: number) => void
+  setSyncError: (v: boolean) => void
   resetAll: () => void
 }
 
@@ -54,6 +59,8 @@ export const useStore = create<State>()(
       theme: null,
       waitlistAt: null,
       welcomed: false,
+      stateUpdatedAt: 0,
+      syncError: false,
       setTheme: (theme) => set({ theme }),
       setWelcomed: () => set({ welcomed: true }),
 
@@ -63,7 +70,13 @@ export const useStore = create<State>()(
         if (!preset && !custom) throw new Error('스타일을 찾을 수 없습니다')
         const cfg = preset ?? { label: custom!.name, tf: custom!.tf, bars: barsFor(custom!) }
         const tickers = await loadTickers()
-        const symbol = tickers[Math.floor(Math.random() * tickers.length)]
+        // 선택한 기간을 감당할 캔들이 있는 종목만 — 상장 이력 짧은 테마주가 세션 시작을 랜덤 실패시키지 않게.
+        // counts 로드 실패 시 전 종목 폴백(기존 동작) — pickRange의 throw가 최종 가드
+        const counts = await loadCandleCounts().catch(() => null)
+        const need = cfg.bars + EMA_WARMUP + LOOKBACK
+        const eligible = counts ? tickers.filter((t) => (counts[t]?.[cfg.tf] ?? 0) >= need) : tickers
+        if (eligible.length === 0) throw new Error('이 기간을 감당할 종목 데이터가 없습니다')
+        const symbol = eligible[Math.floor(Math.random() * eligible.length)]
         const candles = await loadCandles(symbol, cfg.tf)
         const { startIndex, endIndex } = pickRange(candles.length, cfg.bars)
         set({
@@ -183,7 +196,7 @@ export const useStore = create<State>()(
       discardSim: () => set({ activeSim: null, candles: [] }),
 
       submitReview: (emotion, memo) => {
-        const { activeSim, records } = get()
+        const { activeSim, candles, records } = get()
         if (!activeSim || !activeSim.done) return
         const record: SimRecord = {
           id: activeSim.id,
@@ -200,13 +213,26 @@ export const useStore = create<State>()(
           memo,
           trades: activeSim.trades,
           events: activeSim.events,
+          // R13 누적 차트시간 — 실제 플레이한 구간만 (조기 종료 시 미진행 잔여 미포함).
+          // ts 둘은 /review 직접 새로고침(candles 미로드) 시 undefined로 남을 수 있음 — 집계에서 제외됨
+          elapsedBars: activeSim.cursor - activeSim.startIndex,
+          early: activeSim.cursor < activeSim.endIndex,
+          startTs: candles[activeSim.startIndex]?.ts,
+          endTs: candles[activeSim.cursor]?.ts,
         }
         set({ balance: activeSim.cash, records: [record, ...records], activeSim: null, candles: [] })
         void pushRecord(record) // R11 — 로그인 상태면 서버에도 저장 (실패는 다음 대사가 수습)
       },
 
       // R11 서버 대사 결과 반영 — 병합본으로 교체, 잔고는 최신 기록의 종료 잔고를 따름
+      // (state 행이 아직 없는 기존 유저의 복원 경로 — state pull이 있으면 뒤이어 applyState가 덮어씀)
       applySync: (records) => set({ records, balance: records[0]?.endBalance ?? get().balance }),
+
+      // R13 서버 state 반영 — 호출부(shell)가 updatedAt 비교 후 서버가 더 새로울 때만 applyServer로 호출.
+      // sim이 교체되면 candles도 비움 — 안 비우면 resume()이 이전 종목 캔들을 재사용해 오표시·크래시
+      applyState: (data, updatedAt) =>
+        set({ ...data, stateUpdatedAt: updatedAt, ...(data.activeSim?.id !== get().activeSim?.id ? { candles: [] } : {}) }),
+      setSyncError: (syncError) => set({ syncError }),
 
       resetAll: () => {
         void clearRemote() // R11 — 서버 기록도 삭제 (안 지우면 다음 로그인 때 부활)
@@ -216,7 +242,7 @@ export const useStore = create<State>()(
     {
       name: 'charty',
       version: 1,
-      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records, customs: s.customs, theme: s.theme, waitlistAt: s.waitlistAt, welcomed: s.welcomed }),
+      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records, customs: s.customs, theme: s.theme, waitlistAt: s.waitlistAt, welcomed: s.welcomed, stateUpdatedAt: s.stateUpdatedAt }),
       // v1 현물 전환: SHORT 포지션·주문이 남은 진행 세션은 UI로 다룰 수 없으므로 폐기 (기록·잔고는 유지)
       migrate: (persisted) => {
         const s = persisted as { activeSim?: ActiveSim | null }

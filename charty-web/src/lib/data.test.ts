@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resampleCandles } from './data'
+import { fmtDur, normalizeCounts, resampleCandles } from './data'
 import type { Candle } from '../types'
 
 // 13:00 UTC(1h 버킷 경계) 기준 5분봉 생성
@@ -21,5 +21,32 @@ describe('resampleCandles', () => {
   it('버킷 경계는 floor(ts/tfSec) 정렬이다', () => {
     const out = resampleCandles([c5(1)], 900) // 13:05 캔들
     expect(out[0].ts).toBe(46800) // 13:00 버킷 시작으로 내림 정렬
+  })
+})
+
+describe('fmtDur', () => {
+  it('시간·일·개월·년 경계', () => {
+    expect(fmtDur(6 * 3600)).toBe('약 6시간')
+    expect(fmtDur(5 * 86400)).toBe('약 5일')
+    expect(fmtDur(102 * 86400)).toBe('약 3개월 12일')
+    expect(fmtDur(455 * 86400)).toBe('약 1년 3개월')
+  })
+  it('0 나머지는 생략', () => {
+    expect(fmtDur(60 * 86400)).toBe('약 2개월')
+    expect(fmtDur(365 * 86400)).toBe('약 1년')
+  })
+  it('1시간 미만도 최소 1시간', () => {
+    expect(fmtDur(60)).toBe('약 1시간')
+  })
+})
+
+describe('normalizeCounts', () => {
+  it('종목별 형식: 15m/30m/4h를 기본 TF에서 나눗셈으로 파생', () => {
+    const out = normalizeCounts({ QQQ: { '5m': 600, '1h': 400, '1d': 5000, '1w': 1000 } })!
+    expect(out.QQQ).toMatchObject({ '5m': 600, '15m': 200, '30m': 100, '4h': 100, '1d': 5000, '1w': 1000 })
+  })
+  it('구(평면) 형식·빈 객체는 null — 소비처가 기존 동작으로 폴백', () => {
+    expect(normalizeCounts({ '5m': 600, '1h': 400 })).toBeNull()
+    expect(normalizeCounts({})).toBeNull()
   })
 })

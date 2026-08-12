@@ -45,6 +45,9 @@ export default function Welcome() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
         <AuthButtons redirectPath="/profile" beforeSignIn={setWelcomed} />
+        {matchMedia('(display-mode: standalone)').matches && (
+          <div className="dim center" style={{ fontSize: 12 }}>웹에서 쌓은 기록은 로그인하면 여기로 이어집니다</div>
+        )}
         <button
           className="dim"
           style={{ background: 'transparent', fontSize: 13, padding: '10px 0', textDecoration: 'underline', textUnderlineOffset: 3 }}

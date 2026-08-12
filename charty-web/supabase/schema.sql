@@ -40,3 +40,22 @@ drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select using (auth.uid() = user_id);
 create policy "profiles_insert_own" on public.profiles for insert with check (auth.uid() = user_id);
 create policy "profiles_update_own" on public.profiles for update using (auth.uid() = user_id);
+
+-- R13 상태 동기화 — 잔고·진행 세션·커스텀 스타일은 기록(records)과 달리 "현재 값" 하나뿐이라
+-- 유저당 1행 LWW(updated_at은 클라이언트 시각 — 본인 기기끼리의 비교라 서버 시계 불필요)
+create table if not exists public.state (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  data jsonb not null,           -- { balance, activeSim, customs, welcomed, waitlistAt } (src/lib/sync.ts SyncedState)
+  updated_at timestamptz not null
+);
+
+alter table public.state enable row level security;
+
+drop policy if exists "state_select_own" on public.state;
+drop policy if exists "state_insert_own" on public.state;
+drop policy if exists "state_update_own" on public.state;
+drop policy if exists "state_delete_own" on public.state;
+create policy "state_select_own" on public.state for select using (auth.uid() = user_id);
+create policy "state_insert_own" on public.state for insert with check (auth.uid() = user_id);
+create policy "state_update_own" on public.state for update using (auth.uid() = user_id);
+create policy "state_delete_own" on public.state for delete using (auth.uid() = user_id);
