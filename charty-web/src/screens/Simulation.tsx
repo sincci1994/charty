@@ -224,7 +224,7 @@ export default function Simulation() {
       </div>
 
       <div className="symbol-row">
-        <span className="dim small" style={{ whiteSpace: 'nowrap' }}>{sim.done ? `${sim.symbol} · ` : ''}{styleLabel(sim.style, sim.styleLabel)} · {sim.timeframe}</span>
+        <span className="dim small" style={{ whiteSpace: 'nowrap', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{sim.done ? `${sim.symbol} · ` : ''}{styleLabel(sim.style, sim.styleLabel)} · {sim.timeframe}</span>
         <div className="tf-chips" style={tab !== 'chart' ? { visibility: 'hidden' } : undefined}>
           {TF_CHIPS.map((tf) => {
             const missing = TF[tf].sec < TF[sim.timeframe].sec && extra[tf] === 'missing'

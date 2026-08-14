@@ -5,3 +5,6 @@ dist/
 # 자체 git 저장소로 별도 관리 (github.com/ydh4481/charty-app)
 charty-app/
 .DS_Store
+
+# 아바타 원본(장당 1~2MB) — 배포본은 charty-web/public/avatar에 축소 커밋, 원본은 로컬 보관만
+avatar_images/

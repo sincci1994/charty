@@ -2,19 +2,28 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNav } from '../lib/nav'
 import AssetChart from '../components/AssetChart'
 import { Pins, arrowOf, zoneOf } from '../components/NewsPanel'
-import { START_BALANCE, fmtW, loadEcon, loadNews } from '../lib/data'
+import { START_BALANCE, avatarSrc, fmtDur, fmtW, loadEcon, loadNews } from '../lib/data'
 import { equity } from '../lib/engine'
+import { assetSeries, cumulativeReport, cumulativeSimTime } from '../lib/report'
 import { simProgress, useStore } from '../store'
 import type { EconIndicator, NewsData, SimRecord } from '../types'
 
-const PERIODS = { '1w': '1주', '1m': '1달', all: '전체' } as const
+// R14 자산 추이 — 실제 날짜가 아닌 누적 시뮬 시간 기준 구간
+const PERIODS = { '6m': '6개월', '1y': '1년', all: '전체' } as const
 type PeriodKey = keyof typeof PERIODS
+const CUTOFF: Record<PeriodKey, number> = { '6m': 15_768_000, '1y': 31_536_000, all: Infinity }
 
 const sign = (n: number) => (n > 0 ? '+' : n < 0 ? '-' : '')
 const pin = (label: string, value: string, a: { a: string; c: string }) => ({ label, value, tag: a.a, tagColor: a.c })
 
 const EYE_OPEN = 'M3 12 C3 12 6 6 12 6 C18 6 21 12 21 12 C21 12 18 18 12 18 C6 18 3 12 3 12 Z M12 9 A3 3 0 1 0 12 15 A3 3 0 1 0 12 9'
 const EYE_OFF = 'M3 3 L21 21 M10.5 10.6 A3 3 0 0 0 13.4 13.5 M7 7 C4.5 8.5 3 12 3 12 C3 12 6 18 12 18 C13.8 18 15.4 17.4 16.7 16.6 M12 6 C18 6 21 12 21 12 C21 12 20.4 13.2 19.3 14.5'
+
+const Clock = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M12 7 V12 L15 14 M21 12 a9 9 0 1 1 -9 -9 a9 9 0 0 1 9 9 Z" />
+  </svg>
+)
 
 // 공포·탐욕지수 구간 (CNN 기준)
 function fngZoneOf(v: number) {
@@ -40,19 +49,11 @@ function streak(records: SimRecord[]): number {
   return n
 }
 
-// 기간 내 연습 종료 시점의 잔고 시계열 + 현재 자산
-function assetSeries(records: SimRecord[], period: PeriodKey, current: number): number[] {
-  const asc = [...records].sort((a, b) => a.endedAt - b.endedAt)
-  const cutoff = period === 'all' ? 0 : Date.now() - (period === '1w' ? 7 : 30) * 86_400_000
-  const base = asc.filter((r) => r.endedAt < cutoff).at(-1)?.endBalance ?? START_BALANCE
-  return [base, ...asc.filter((r) => r.endedAt >= cutoff).map((r) => r.endBalance), current]
-}
-
 export default function Home() {
   const nav = useNav()
   const { balance, records, activeSim, candles, resume, discardSim } = useStore()
   const [hideAsset, setHideAsset] = useState(false)
-  const [period, setPeriod] = useState<PeriodKey>('1m')
+  const [period, setPeriod] = useState<PeriodKey>('6m')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [econ, setEcon] = useState<EconIndicator[] | null>(null)
   const [news, setNews] = useState<NewsData | null>(null)
@@ -141,7 +142,12 @@ export default function Home() {
   const streakDays = streak(records)
   const profitTint = profitRate === null || profitRate === 0 ? '' : profitRate > 0 ? 'tint-up' : 'tint-down'
   const progress = activeSim ? simProgress(activeSim) : 0
-  const periodLabel = PERIODS[period]
+  // R14 — 누적 시뮬 시간(아바타 나이·시간 타일·차트 캡션) + R7 지표 재활용 조언
+  const simSec = useMemo(() => cumulativeSimTime(records).sec, [records])
+  const advice = useMemo(
+    () => cumulativeReport(records).metrics.filter((m) => !m.locked && m.value && m.value !== '—').slice(0, 3),
+    [records],
+  )
 
   return (
     <div className="page">
@@ -153,28 +159,41 @@ export default function Home() {
       </header>
 
       <section className="card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span className="sub" style={{ fontSize: 13 }}>총 자산</span>
-          <button
-            onClick={() => setHideAsset((v) => !v)}
-            aria-label={hideAsset ? '자산 보이기' : '자산 숨기기'}
-            style={{ all: 'unset', cursor: 'pointer', display: 'flex', color: 'var(--dim)' }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d={hideAsset ? EYE_OFF : EYE_OPEN} />
-            </svg>
-          </button>
-        </div>
-        <div className="num" style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.374px' }}>
-          {hideAsset ? '₩ ******' : fmtW(totalAsset)}
-        </div>
-        {!hideAsset && (
-          <div className={`num ${up ? 'up' : down ? 'down' : 'sub'}`} style={{ fontSize: 14, fontWeight: 500 }}>
-            {newUser
-              ? `시작 자산 ${fmtW(START_BALANCE)}`
-              : `${sign(delta)}${fmtW(Math.abs(delta))} (${sign(deltaRate)}${Math.abs(deltaRate).toFixed(1)}%)`}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="sub" style={{ fontSize: 13 }}>총 자산</span>
+              <button
+                onClick={() => setHideAsset((v) => !v)}
+                aria-label={hideAsset ? '자산 보이기' : '자산 숨기기'}
+                style={{ all: 'unset', cursor: 'pointer', display: 'flex', color: 'var(--dim)' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={hideAsset ? EYE_OFF : EYE_OPEN} />
+                </svg>
+              </button>
+            </div>
+            {/* 320px대에서 92px 아바타와 안 겹치게 금액 폰트를 뷰포트에 맞춰 축소 (통화 문자열은 줄바꿈 불가) */}
+            <div className="num" style={{ fontSize: 'clamp(20px, 7.5vw, 28px)', fontWeight: 600, letterSpacing: '-0.374px' }}>
+              {hideAsset ? '₩ ******' : fmtW(totalAsset)}
+            </div>
+            {!hideAsset && (
+              <div className={`num ${up ? 'up' : down ? 'down' : 'sub'}`} style={{ fontSize: 14, fontWeight: 500 }}>
+                {newUser
+                  ? `시작 자산 ${fmtW(START_BALANCE)}`
+                  : `${sign(delta)}${fmtW(Math.abs(delta))} (${sign(deltaRate)}${Math.abs(deltaRate).toFixed(1)}%)`}
+              </div>
+            )}
           </div>
-        )}
+          {/* R14 캐릭터 — 나이(누적 시뮬 시간) × 부(자산 배수), 10억 = 펜트하우스 컷신 */}
+          <img src={avatarSrc(totalAsset, simSec)} alt="내 캐릭터" width={92} height={92} style={{ flexShrink: 0, borderRadius: 14, objectFit: 'cover', width: 'min(92px, 24vw)', height: 'auto', aspectRatio: '1' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
+          <Clock />
+          <span className="dim" style={{ fontSize: 11 }}>
+            {simSec > 0 ? `이만큼 모으는 데 매매로 보낸 시간 ${fmtDur(simSec)}` : '매매를 시작하면 시뮬 시간이 함께 흘러요'}
+          </span>
+        </div>
       </section>
 
       {activeSim ? (
@@ -209,6 +228,10 @@ export default function Home() {
           <b>{tradeCount}건</b>
           <span>총 거래 수</span>
         </div>
+        <div className="stat">
+          <b>{simSec > 0 ? fmtDur(simSec) : '-'}</b>
+          <span>매매로 보낸 시간</span>
+        </div>
       </div>
 
       <section className="card" style={{ padding: '18px 16px 12px' }}>
@@ -222,11 +245,23 @@ export default function Home() {
             ))}
           </div>
         </div>
-        <AssetChart values={assetSeries(records, period, totalAsset)} startLabel={`${periodLabel} 전`} />
+        <AssetChart
+          values={assetSeries(records, CUTOFF[period], totalAsset)}
+          startLabel={simSec < CUTOFF[period] ? '첫 매매' : period === '6m' ? '시뮬 6개월 전' : '시뮬 1년 전'}
+          endLabel="지금 (시뮬 시점)"
+        />
+        {simSec > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, borderTop: '1px solid var(--hairline)', marginTop: 8, paddingTop: 8 }}>
+            <Clock />
+            <span className="dim" style={{ fontSize: 10.5, flex: 1 }}>실제 날짜가 아닌, 매매하며 보낸 시뮬레이션 시간이에요</span>
+            <span className="dim num" style={{ fontSize: 10.5, flexShrink: 0 }}>누적 시뮬 {fmtDur(simSec)}</span>
+          </div>
+        )}
       </section>
 
       <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>매매 스타일 조언</h2>
-      <section className="card">
+      {/* R14 — R7 행동 리포트의 해금된 지표를 요약 rows로 재활용, 탭하면 전체 리포트로 */}
+      <button className="card" onClick={() => nav('/report')} style={{ textAlign: 'left', font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg, #1FB6FF, #9B2FF8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -235,14 +270,34 @@ export default function Home() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.2px' }}>
-              {records.length === 0 ? '아직 분석할 기록이 없어요' : '매매 스타일 분석을 준비 중이에요'}
+              {advice.length > 0 ? '내 행동 지표' : records.length === 0 ? '아직 분석할 기록이 없어요' : '매매 스타일 분석을 준비 중이에요'}
             </div>
             <div className="dim" style={{ fontSize: 11, marginTop: 1 }}>
-              {records.length === 0 ? '첫 연습을 마치면 매매 스타일 조언이 나타나요' : '곧 매매 기록 기반 조언이 제공될 예정이에요'}
+              {advice.length > 0
+                ? `최근 ${records.length}회 연습 분석`
+                : records.length === 0 ? '첫 연습을 마치면 매매 스타일 조언이 나타나요' : '연습이 쌓이면 행동 지표가 여기 나타나요'}
             </div>
           </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M9 6 L15 12 L9 18" />
+          </svg>
         </div>
-      </section>
+        {advice.map((m) => {
+          const t = m.tone === 'up'
+            ? { label: '강점', c: 'var(--green)', bg: 'rgba(48,209,88,0.14)' }
+            : m.tone === 'down'
+              ? { label: '주의', c: '#f5a623', bg: 'rgba(245,166,35,0.14)' }
+              : { label: '참고', c: 'var(--accent)', bg: 'var(--accent-soft)' }
+          return (
+            <div key={m.title} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--hairline)', borderRadius: 12, padding: '10px 12px' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: t.c, background: t.bg, borderRadius: 999, padding: '3px 8px', flexShrink: 0 }}>{t.label}</span>
+              <span style={{ fontSize: 12, lineHeight: 1.45, letterSpacing: '-0.1px' }}>
+                {m.title} <b className="num">{m.value}</b> — {m.desc}
+              </span>
+            </div>
+          )
+        })}
+      </button>
 
       {market && (
         <>
@@ -270,7 +325,7 @@ export default function Home() {
                   <div className="dim" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{g.name}</div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 3 }}>
                     <span className="num" style={{ fontSize: 16, fontWeight: 700 }}>{g.val}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: g.zone.c, background: g.zone.bg, borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>{g.zone.z}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: g.zone.c, background: g.zone.bg, borderRadius: 999, padding: '3px 8px' }}>{g.zone.z}</span>
                   </div>
                   <div style={{ marginTop: 9, position: 'relative', height: 7, borderRadius: 4, background: g.track, opacity: 0.9 }}>
                     <div style={{ position: 'absolute', top: '50%', left: `${g.pos.toFixed(1)}%`, transform: 'translate(-50%,-50%)', width: 13, height: 13, borderRadius: '50%', background: '#fff', border: `3px solid ${g.zone.c}`, boxShadow: '0 1px 3px rgba(0,0,0,0.25)', boxSizing: 'border-box' }} />

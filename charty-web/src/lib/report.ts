@@ -1,5 +1,5 @@
 import type { SimEvent, SimRecord, Trade } from '../types'
-import { TF } from './data'
+import { START_BALANCE, TF } from './data'
 
 // R7 행동 리포트 계산 — 표현 원칙: 심리 단정 금지, [조건]+[수치]+[관찰된 행동]만.
 // 여기 함수들은 문장까지 만들어 반환한다 (문구 규칙을 한 곳에 모으기 위해).
@@ -32,6 +32,21 @@ export function cumulativeSimTime(records: SimRecord[]): { sec: number; excluded
     else excluded++
   }
   return { sec, excluded }
+}
+
+// R14 자산 시계열(홈 차트) — 최신 기록부터 누적 시뮬 시간이 cutoffSec에 찰 때까지 포함.
+// 시간 필드 없는 pre-R13 기록은 0초로 통과. acc 검사가 push 전이라 첫(최신) 기록은 항상 포함 — 빈 차트 없음
+export function assetSeries(records: SimRecord[], cutoffSec: number, current: number): number[] {
+  const desc = [...records].sort((a, b) => b.endedAt - a.endedAt)
+  let acc = 0
+  const kept: SimRecord[] = []
+  for (const r of desc) {
+    if (acc >= cutoffSec) break
+    kept.push(r)
+    acc += Math.max(0, (r.endTs ?? 0) - (r.startTs ?? 0))
+  }
+  const base = desc[kept.length]?.endBalance ?? START_BALANCE
+  return [base, ...kept.reverse().map((r) => r.endBalance), current]
 }
 
 // ── 기초 집계 ──────────────────────────────────────────────

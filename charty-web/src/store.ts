@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ActiveSim, Candle, CustomStyle, Side, SimRecord, Style } from './types'
-import { EMA_WARMUP, LOOKBACK, START_BALANCE, STYLES, barsFor, loadCandleCounts, loadCandles, loadTickers, pickRange } from './lib/data'
+import { EMA_WARMUP, LOOKBACK, SETS, START_BALANCE, STYLES, barsFor, loadCandleCounts, loadCandles, loadTickers, pickRange } from './lib/data'
+import type { SetKey } from './lib/data'
 import { fillOrders, forceCloseAll, validateOrder } from './lib/engine'
 import { clearRemote, pushRecord } from './lib/sync'
 import type { SyncedState } from './lib/sync'
@@ -28,7 +29,7 @@ interface State {
   setTheme: (t: 'light' | 'dark') => void
   setWelcomed: () => void
 
-  startSim: (style: string) => Promise<void>
+  startSim: (style: string, setKey?: SetKey) => Promise<void>
   saveCustom: (c: CustomStyle) => void
   deleteCustom: (id: string) => void
   resume: () => Promise<void>
@@ -64,18 +65,21 @@ export const useStore = create<State>()(
       setTheme: (theme) => set({ theme }),
       setWelcomed: () => set({ welcomed: true }),
 
-      startSim: async (style) => {
+      startSim: async (style, setKey) => {
         const preset = STYLES[style as Style]
         const custom = get().customs.find((c) => c.id === style)
         if (!preset && !custom) throw new Error('스타일을 찾을 수 없습니다')
         const cfg = preset ?? { label: custom!.name, tf: custom!.tf, bars: barsFor(custom!) }
         const tickers = await loadTickers()
-        // 선택한 기간을 감당할 캔들이 있는 종목만 — 상장 이력 짧은 테마주가 세션 시작을 랜덤 실패시키지 않게.
-        // counts 로드 실패 시 전 종목 폴백(기존 동작) — pickRange의 throw가 최종 가드
+        // R14 세트 제한(블라인드 유지 — 세트 내 무작위) + 선택한 기간을 감당할 캔들이 있는 종목만.
+        // counts 로드 실패 시 세트 풀 전체 폴백 — pickRange의 throw가 최종 가드
+        const setTickers = setKey ? SETS[setKey]?.tickers : null
+        const pool = setTickers ? tickers.filter((t) => setTickers.includes(t)) : tickers
         const counts = await loadCandleCounts().catch(() => null)
         const need = cfg.bars + EMA_WARMUP + LOOKBACK
-        const eligible = counts ? tickers.filter((t) => (counts[t]?.[cfg.tf] ?? 0) >= need) : tickers
-        if (eligible.length === 0) throw new Error('이 기간을 감당할 종목 데이터가 없습니다')
+        const eligible = counts ? pool.filter((t) => (counts[t]?.[cfg.tf] ?? 0) >= need) : pool
+        if (eligible.length === 0)
+          throw new Error(setTickers ? '이 세트에는 이 기간을 감당할 종목 데이터가 없어요. 다른 세트나 더 짧은 기간을 골라주세요' : '이 기간을 감당할 종목 데이터가 없습니다')
         const symbol = eligible[Math.floor(Math.random() * eligible.length)]
         const candles = await loadCandles(symbol, cfg.tf)
         const { startIndex, endIndex } = pickRange(candles.length, cfg.bars)

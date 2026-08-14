@@ -82,6 +82,7 @@ export default function CustomStyle() {
         type="text"
         value={name}
         placeholder="이름을 입력하세요"
+        maxLength={20}
         onChange={(e) => setName(e.target.value)}
         style={{ height: 48, borderRadius: 12, border: '1px solid var(--hairline)', background: 'var(--card)', fontSize: 15, padding: '0 16px' }}
       />

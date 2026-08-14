@@ -58,6 +58,7 @@ body {
   color: var(--text);
   font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip; /* 소형 폰(320px대)에서 요소 하나가 넘쳐도 페이지 전체 좌우 스크롤은 금지 */
 }
 
 .app {
@@ -231,12 +232,15 @@ button:disabled { opacity: 0.5; }
 }
 
 .progress-row { display: flex; align-items: center; gap: 10px; }
-.symbol-row { display: flex; align-items: center; justify-content: space-between; }
-.tf-chips { display: flex; gap: 4px; }
+.symbol-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* 칩 행은 320px대 폰에서 폭 예산을 넘으므로 행 안에서 가로 스크롤 (filter-chips와 동일 관례, 스크롤바 숨김) */
+.tf-chips { display: flex; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tf-chips::-webkit-scrollbar { display: none; }
 .chip.off { opacity: 0.55; background: var(--card2); }
 
 .ind-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.ind-chips { display: flex; gap: 5px; }
+.ind-chips { display: flex; gap: 5px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.ind-chips::-webkit-scrollbar { display: none; }
 .ind-chips .chip { padding: 7px 11px; border: 1px solid var(--hairline); }
 .ind-chips .chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .next-btn {
@@ -438,7 +442,7 @@ input, textarea {
 
 .stats {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr; /* R14 — 4타일 2×2 ('매매로 보낸 시간' 추가) */
   gap: 10px;
 }
 .stat {

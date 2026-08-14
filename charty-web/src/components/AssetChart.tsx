@@ -13,7 +13,7 @@ export function polyline(vals: number[], w: number, h: number, mn: number, mx: n
   }
 }
 
-export default function AssetChart({ values, startLabel }: { values: number[]; startLabel: string }) {
+export default function AssetChart({ values, startLabel, endLabel = '현재' }: { values: number[]; startLabel: string; endLabel?: string }) {
   const { d, lx, ly } = polyline(values, W, H, Math.min(...values), Math.max(...values), PAD)
   const area = `${d} L${lx.toFixed(1)} ${H} L${PAD} ${H} Z`
   return (
@@ -36,7 +36,7 @@ export default function AssetChart({ values, startLabel }: { values: number[]; s
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
         <span className="sub" style={{ fontSize: 10 }}>{startLabel}</span>
-        <span className="sub" style={{ fontSize: 10 }}>현재</span>
+        <span className="sub" style={{ fontSize: 10 }}>{endLabel}</span>
       </div>
     </>
   )

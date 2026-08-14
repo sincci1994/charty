@@ -58,7 +58,8 @@ export default function FundPanel({ quarters, nowTs, price }: { quarters?: FundQ
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: `62px repeat(${cols.length}, 1fr)`, gap: '8px 4px', marginTop: 13, fontSize: 11, alignItems: 'baseline' }}>
+        {/* 320px대에서 nowrap 셀 합이 카드 폭을 살짝 넘을 수 있어 행 내 가로 스크롤 허용 */}
+        <div style={{ display: 'grid', gridTemplateColumns: `62px repeat(${cols.length}, 1fr)`, gap: '8px 4px', marginTop: 13, fontSize: 11, alignItems: 'baseline', overflowX: 'auto' }}>
           <span />
           {cols.map((r) => (
             <span key={r.rel} className="dim" style={{ fontSize: 9, textAlign: 'right', whiteSpace: 'nowrap' }}>{r.rel}</span>

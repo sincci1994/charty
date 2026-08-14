@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fmtDur, normalizeCounts, resampleCandles } from './data'
+import { SETS, avatarSrc, fmtDur, normalizeCounts, resampleCandles } from './data'
 import type { Candle } from '../types'
 
 // 13:00 UTC(1h 버킷 경계) 기준 5분봉 생성
@@ -48,5 +48,27 @@ describe('normalizeCounts', () => {
   it('구(평면) 형식·빈 객체는 null — 소비처가 기존 동작으로 폴백', () => {
     expect(normalizeCounts({ '5m': 600, '1h': 400 })).toBeNull()
     expect(normalizeCounts({})).toBeNull()
+  })
+})
+
+describe('avatarSrc', () => {
+  const Y = 31_536_000
+  it('부 경계 — 배수 0.99/1.6, 신규 유저(배수 1.0)는 보통', () => {
+    expect(avatarSrc(989_999, 0)).toBe('/avatar/child_00.png')
+    expect(avatarSrc(1_000_000, 0)).toBe('/avatar/child_01.png')
+    expect(avatarSrc(1_600_000, 2 * Y)).toBe('/avatar/young_02.png')
+  })
+  it('나이 경계 — 시뮬 2년/5년, 10억이면 펜트하우스 컷신', () => {
+    expect(avatarSrc(1_000_000, 2 * Y - 1)).toBe('/avatar/child_01.png')
+    expect(avatarSrc(1_000_000, 5 * Y)).toBe('/avatar/old_01.png')
+    expect(avatarSrc(1_000_000_000, 5 * Y)).toBe('/avatar/old_rich.png')
+  })
+})
+
+describe('SETS', () => {
+  it('세트 티커 수 — 빅테크·꿈팔이 6종, 랜덤은 전체(null)', () => {
+    expect(SETS.BIGTECH.tickers).toHaveLength(6)
+    expect(SETS.GROWTH.tickers).toHaveLength(6)
+    expect(SETS.ANY.tickers).toBeNull()
   })
 })

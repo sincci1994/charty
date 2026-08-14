@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SimEvent, SimRecord, Trade } from '../types'
-import { cumulativeReport, cumulativeSimTime, episodes, newsFollowups, postLossRatios, sessionObservations, slExecution } from './report'
+import { assetSeries, cumulativeReport, cumulativeSimTime, episodes, newsFollowups, postLossRatios, sessionObservations, slExecution } from './report'
 
 const H = 3600 // 1h 타임프레임 초
 const buy = (ts: number, price: number, qty: number, extra: Partial<Trade> = {}): Trade => ({ ts, side: 'OPEN_LONG', price, qty, reasons: ['기술적'], ...extra })
@@ -133,5 +133,33 @@ describe('cumulativeSimTime', () => {
 
   it('빈 기록이면 0', () => {
     expect(cumulativeSimTime([])).toEqual({ sec: 0, excluded: 0 })
+  })
+})
+
+describe('assetSeries', () => {
+  const D = 86400
+  const rec = (endedAt: number, endBalance: number, extra: Partial<SimRecord> = {}): SimRecord =>
+    ({ id: String(endedAt), endedAt, style: 'SWING', symbol: 'QQQ', startBalance: 1e6, endBalance, pnlPct: 0, tradeCount: 0, emotion: '😐', memo: '', ...extra })
+
+  it('누적 시뮬 시간이 컷오프에 찰 때까지 최신부터 포함, base는 그 직전 기록의 잔고', () => {
+    const records = [
+      rec(1, 110, { startTs: 0, endTs: 10 * D }),
+      rec(2, 120, { startTs: 0, endTs: 10 * D }),
+      rec(3, 130, { startTs: 0, endTs: 10 * D }),
+    ]
+    // 컷오프 15일: 최신(3) 포함 후 acc=10일 < 15일 → (2)도 포함, acc=20일 → stop. base = (1).endBalance
+    expect(assetSeries(records, 15 * D, 999)).toEqual([110, 120, 130, 999])
+  })
+
+  it('시간 필드 없는 pre-R13 기록은 0초로 통과해 어떤 컷오프에도 포함', () => {
+    expect(assetSeries([rec(1, 110), rec(2, 120)], 1, 999)).toEqual([1e6, 110, 120, 999])
+  })
+
+  it('빈 기록이면 [START_BALANCE, current]', () => {
+    expect(assetSeries([], 1, 999)).toEqual([1e6, 999])
+  })
+
+  it('첫(최신) 기록은 자기 기간이 컷오프를 넘겨도 항상 포함', () => {
+    expect(assetSeries([rec(1, 110, { startTs: 0, endTs: 100 * D })], 1 * D, 999)).toEqual([1e6, 110, 999])
   })
 })
