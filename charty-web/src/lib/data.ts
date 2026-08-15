@@ -1,6 +1,6 @@
 import type { Candle, CustomStyle, EconIndicator, FundQuarter, NewsData, Style, Timeframe, Unit } from '../types'
 
-export const START_BALANCE = 1_000_000
+export const START_BALANCE = 10_000_000 // 초기 총 자산 1천만원 (2026-08-15 100만→1천만)
 
 export const STYLES: Record<Style, { label: string; period: string; tf: Timeframe; bars: number }> = {
   SCALP: { label: '단타', period: '1일', tf: '5m', bars: 78 },

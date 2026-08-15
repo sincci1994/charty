@@ -152,14 +152,14 @@ describe('assetSeries', () => {
   })
 
   it('시간 필드 없는 pre-R13 기록은 0초로 통과해 어떤 컷오프에도 포함', () => {
-    expect(assetSeries([rec(1, 110), rec(2, 120)], 1, 999)).toEqual([1e6, 110, 120, 999])
+    expect(assetSeries([rec(1, 110), rec(2, 120)], 1, 999)).toEqual([1e7, 110, 120, 999])
   })
 
   it('빈 기록이면 [START_BALANCE, current]', () => {
-    expect(assetSeries([], 1, 999)).toEqual([1e6, 999])
+    expect(assetSeries([], 1, 999)).toEqual([1e7, 999])
   })
 
   it('첫(최신) 기록은 자기 기간이 컷오프를 넘겨도 항상 포함', () => {
-    expect(assetSeries([rec(1, 110, { startTs: 0, endTs: 100 * D })], 1 * D, 999)).toEqual([1e6, 110, 999])
+    expect(assetSeries([rec(1, 110, { startTs: 0, endTs: 100 * D })], 1 * D, 999)).toEqual([1e7, 110, 999])
   })
 })

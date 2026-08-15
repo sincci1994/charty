@@ -54,13 +54,13 @@ describe('normalizeCounts', () => {
 describe('avatarSrc', () => {
   const Y = 31_536_000
   it('부 경계 — 배수 0.99/1.6, 신규 유저(배수 1.0)는 보통', () => {
-    expect(avatarSrc(989_999, 0)).toBe('/avatar/child_00.png')
-    expect(avatarSrc(1_000_000, 0)).toBe('/avatar/child_01.png')
-    expect(avatarSrc(1_600_000, 2 * Y)).toBe('/avatar/young_02.png')
+    expect(avatarSrc(9_899_999, 0)).toBe('/avatar/child_00.png')
+    expect(avatarSrc(10_000_000, 0)).toBe('/avatar/child_01.png')
+    expect(avatarSrc(16_000_000, 2 * Y)).toBe('/avatar/young_02.png')
   })
   it('나이 경계 — 시뮬 2년/5년, 10억이면 펜트하우스 컷신', () => {
-    expect(avatarSrc(1_000_000, 2 * Y - 1)).toBe('/avatar/child_01.png')
-    expect(avatarSrc(1_000_000, 5 * Y)).toBe('/avatar/old_01.png')
+    expect(avatarSrc(10_000_000, 2 * Y - 1)).toBe('/avatar/child_01.png')
+    expect(avatarSrc(10_000_000, 5 * Y)).toBe('/avatar/old_01.png')
     expect(avatarSrc(1_000_000_000, 5 * Y)).toBe('/avatar/old_rich.png')
   })
 })
