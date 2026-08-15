@@ -313,8 +313,9 @@ export default function Simulation() {
           </button>
         </div>
         {sim.done ? (
-          <button className="pill pill-primary pulse" style={{ height: 36, fontSize: 12, fontWeight: 600 }} onClick={() => nav('/review')}>
-            지금 회고 작성하기 ›
+          // nowrap·축소 금지 — 380~412px 폰에서 pill이 flex 축소로 두 줄 꺾이던 문제
+          <button className="pill pill-primary pulse" style={{ height: 36, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => nav('/review')}>
+            기록하기 ›
           </button>
         ) : (
           <button className="next-btn" onClick={nextCandle}>

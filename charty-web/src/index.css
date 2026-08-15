@@ -250,7 +250,8 @@ button:disabled { opacity: 0.5; }
 }
 @media (max-width: 379px) {
   .ind-row { flex-wrap: wrap; }
-  .ind-row > .next-btn, .ind-row > .pill { flex: 1; justify-content: center; }
+  /* flex-basis 100% — 액션 버튼을 항상 전체 폭 둘째 줄로 확정 (basis 0이면 한 줄에 끼며 칩을 다시 잘라냄) */
+  .ind-row > .next-btn, .ind-row > .pill { flex: 1 0 100%; justify-content: center; }
 }
 .ind-chips .chip { padding: 7px 11px; border: 1px solid var(--hairline); }
 .ind-chips .chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
