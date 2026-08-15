@@ -4,7 +4,9 @@ import AssetChart from '../components/AssetChart'
 import { Pins, arrowOf, zoneOf } from '../components/NewsPanel'
 import { START_BALANCE, avatarSrc, fmtDur, fmtW, loadEcon, loadNews } from '../lib/data'
 import { equity } from '../lib/engine'
+import { loadProfile } from '../lib/profile'
 import { assetSeries, cumulativeReport, cumulativeSimTime } from '../lib/report'
+import { useSession } from '../lib/supabase'
 import { simProgress, useStore } from '../store'
 import type { EconIndicator, NewsData, SimRecord } from '../types'
 
@@ -59,11 +61,21 @@ export default function Home() {
   const [news, setNews] = useState<NewsData | null>(null)
   const [region, setRegion] = useState<'kr' | 'us'>('kr')
   const [newsMore, setNewsMore] = useState(false)
+  const session = useSession()
+  const [nickname, setNickname] = useState<string | null>(null)
 
   useEffect(() => {
     loadEcon().then(setEcon).catch(() => setEcon([]))
     loadNews().then(setNews).catch(() => setNews(null))
   }, [])
+
+  // 인사말 닉네임 — 프로필은 서버 전용(로컬 미러 없음, More.tsx와 동일 패턴). 미로그인·미작성이면 이름 생략
+  useEffect(() => {
+    if (!session) return setNickname(null)
+    let live = true
+    loadProfile().then((p) => { if (live) setNickname(p?.nickname ?? null) })
+    return () => { live = false }
+  }, [session])
 
   // 시장 현황 — econ.json 최신 2개 값으로 구성. 해외=미국 지표 게이지·핀, 국내=코스피·코스닥·환율 시세
   const market = useMemo(() => {
@@ -152,7 +164,7 @@ export default function Home() {
   return (
     <div className="page">
       <header style={{ padding: '4px 0 8px' }}>
-        <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.374px' }}>안녕하세요! 👋</div>
+        <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.374px' }}>안녕하세요{nickname ? `, ${nickname}님` : ''}! 👋</div>
         <div className="sub" style={{ fontSize: 15, marginTop: 6 }}>
           {streakDays > 0 ? `${streakDays}일 연속 연습 중! 대단해요!` : '오늘 첫 연습을 시작해보세요!'}
         </div>
