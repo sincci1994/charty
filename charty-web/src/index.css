@@ -78,6 +78,7 @@ body {
   gap: 12px;
 }
 
+
 h2 { font-size: 22px; }
 
 .dim { color: var(--dim); }
@@ -233,7 +234,7 @@ button:disabled { opacity: 0.5; }
 
 .progress-row { display: flex; align-items: center; gap: 10px; }
 .symbol-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-/* 칩 행은 320px대 폰에서 폭 예산을 넘으므로 행 안에서 가로 스크롤 (filter-chips와 동일 관례, 스크롤바 숨김) */
+/* 칩 행은 좁은 폰에서 폭 예산을 넘음 — 1차 방어는 아래 미디어쿼리의 줄바꿈, 스크롤은 최후 안전망 */
 .tf-chips { display: flex; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .tf-chips::-webkit-scrollbar { display: none; }
 .chip.off { opacity: 0.55; background: var(--card2); }
@@ -241,6 +242,16 @@ button:disabled { opacity: 0.5; }
 .ind-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ind-chips { display: flex; gap: 5px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .ind-chips::-webkit-scrollbar { display: none; }
+
+/* 좁은 폰 — 칩이 잘린 채 버튼과 맞닿아 '겹쳐 보이는' 문제: 스크롤 대신 줄바꿈으로 전환.
+   갤럭시 360dp·화면 확대(312dp)에서 TF 칩 7개(285px)·지표 칩+다음 캔들(346px)이 한 줄 예산 초과 */
+@media (max-width: 399px) {
+  .symbol-row { flex-wrap: wrap; }
+}
+@media (max-width: 379px) {
+  .ind-row { flex-wrap: wrap; }
+  .ind-row > .next-btn, .ind-row > .pill { flex: 1; justify-content: center; }
+}
 .ind-chips .chip { padding: 7px 11px; border: 1px solid var(--hairline); }
 .ind-chips .chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .next-btn {
@@ -894,3 +905,11 @@ dialog .actions .pill-secondary { color: var(--text); font-size: 15px; }
   padding: 0 10px;
 }
 .report-entry { flex-direction: row; align-items: center; justify-content: space-between; }
+
+/* 좁은 폰(갤럭시 360dp·화면 확대) — 고정 px UI가 상대적으로 커 보이는 '확대된 느낌' 완화: 여백 밀도 조정.
+   ⚠ 동일 특이도 캐스케이드에서 기본 규칙(.card·.filter-chips)을 이기려면 반드시 파일 끝에 위치해야 함 */
+@media (max-width: 379px) {
+  .page { padding: 14px 12px; gap: 10px; }
+  .card { padding: 16px; }
+  .filter-chips { margin-left: -12px; margin-right: -12px; padding-left: 12px; padding-right: 12px; } /* 음수 마진을 줄어든 패딩에 맞춤 */
+}
