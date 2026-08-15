@@ -60,7 +60,8 @@ export default function Review() {
         <div className="cta-card">
           <div style={{ fontSize: 15, fontWeight: 700 }}>이런 리포트를 매 세션 받아보세요</div>
           <div className="dim" style={{ fontSize: 12, lineHeight: 1.5 }}>누적 행동 분석과 맞춤 훈련 추천을 준비하고 있어요</div>
-          <div className="dim" style={{ fontSize: 11 }}>출시 예정 · 월 ₩4,900</div>
+          {/* 가격 표시 제거(2026-08-15) — 유료화 신호는 아직 노출하지 않기로. 지불의사 측정은 신청 클릭(waitlistAt)만으로 */}
+          <div className="dim" style={{ fontSize: 11 }}>출시 예정</div>
           <button className="pill pill-primary pill-full" style={{ marginTop: 8 }} disabled={!!waitlistAt} onClick={joinWaitlist}>
             {waitlistAt ? '신청 완료 ✓' : '미리 신청하기'}
           </button>
