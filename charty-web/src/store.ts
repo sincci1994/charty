@@ -22,11 +22,13 @@ interface State {
   customs: CustomStyle[]
   candles: Candle[] // 활성 시뮬의 전체 캔들 (localStorage에 저장 안 함)
   theme: 'light' | 'dark' | null // null = 시스템 설정 따름
+  coach: boolean // R16 — 뉴스·재무 탭 도우미 해석 카드 (기기 로컬 설정)
   waitlistAt: number | null // R7 지불의사 게이트 — '미리 신청하기' 클릭 시각
   welcomed: boolean // R12 — 첫 방문 웰컴 화면을 지나쳤는가 (기록 있는 기존 유저는 게이트가 자동 통과)
   stateUpdatedAt: number // R13 — 동기화 슬라이스(SyncedState)의 마지막 변이 시각, 기기 간 LWW 비교 기준
   syncError: boolean // R13 — 마지막 pull 실패 여부 (비영속, More 문구용)
   setTheme: (t: 'light' | 'dark') => void
+  setCoach: (v: boolean) => void
   setWelcomed: () => void
 
   startSim: (style: string, setKey?: SetKey) => Promise<void>
@@ -58,11 +60,13 @@ export const useStore = create<State>()(
       customs: [],
       candles: [],
       theme: null,
+      coach: true,
       waitlistAt: null,
       welcomed: false,
       stateUpdatedAt: 0,
       syncError: false,
       setTheme: (theme) => set({ theme }),
+      setCoach: (coach) => set({ coach }),
       setWelcomed: () => set({ welcomed: true }),
 
       startSim: async (style, setKey) => {
@@ -245,13 +249,15 @@ export const useStore = create<State>()(
     }),
     {
       name: 'charty',
-      version: 1,
-      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records, customs: s.customs, theme: s.theme, waitlistAt: s.waitlistAt, welcomed: s.welcomed, stateUpdatedAt: s.stateUpdatedAt }),
+      version: 2,
+      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records, customs: s.customs, theme: s.theme, coach: s.coach, waitlistAt: s.waitlistAt, welcomed: s.welcomed, stateUpdatedAt: s.stateUpdatedAt }),
       // v1 현물 전환: SHORT 포지션·주문이 남은 진행 세션은 UI로 다룰 수 없으므로 폐기 (기록·잔고는 유지)
-      migrate: (persisted) => {
+      // v2 통화 정합(FX): 구스케일($축 현금)로 진행 중이던 세션은 평가액이 어긋나므로 폐기 (기록·잔고는 유지)
+      migrate: (persisted, version) => {
         const s = persisted as { activeSim?: ActiveSim | null }
         if (s.activeSim && (s.activeSim.positions?.SHORT || s.activeSim.openOrders?.some((o) => o.side.includes('SHORT'))))
           s.activeSim = null
+        if (version < 2 && s.activeSim) s.activeSim = null
         return persisted
       },
     },

@@ -22,6 +22,10 @@ TICKERS = [
     # R13 스토리·테마주 — 단조 우상향 방지용 변동성 종목. 상장 이력이 짧은 종목이 섞이므로
     # counts는 종목별로 저장하고(candle-counts.json), 앱이 기간에 맞는 종목만 고른다(store.ts startSim)
     "PLUG", "FCEL", "LCID", "RIVN", "JOBY", "IONQ",
+    # R15 유니버스 확장 — 블라인드 강화 + 국면 다양성 (data.ts SETS와 짝)
+    "AMD", "INTC", "MU", "TSM", "AVGO", "QCOM",     # 반도체·AI — 20년 사이클 산업
+    "JPM", "JNJ", "KO", "XOM", "CAT", "DIS",        # S&P500 섹터 대표 우량주
+    "CROX", "GPRO", "IRBT", "FSLR", "KTOS", "SFIX", # 러셀 스몰캡 — 급등·급락 서사, 유동성 얇음
 ]
 OUT = Path(__file__).resolve().parent.parent / "public" / "data"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -83,7 +87,7 @@ for sym in TICKERS:
         print(f"{sym} 캔들 수집 실패 — 제외:", repr(e))
         counts.pop(sym, None)  # 부분 성공분 카운트 제거 — tickers에서 빠진 종목의 잔재 방지
         failed.append(sym)
-    time.sleep(1)  # yfinance 스로틀 예방 (12종 × 4콜)
+    time.sleep(1)  # yfinance 스로틀 예방 (30종 × 4콜)
 
 ok_tickers = [s for s in TICKERS if s not in failed]
 if not ok_tickers:  # 전멸 = yfinance 전면 차단 — 어제 파일(tickers/counts)을 빈 것으로 덮지 않는다
@@ -98,8 +102,13 @@ print("candle-counts.json:", {s: c.get("1d") for s, c in counts.items()}, "(1d)"
 # filed가 곧 앱의 노출 기준(공시 전 분기는 시뮬에서 미래 정보)이므로 원본 공시가 정답.
 SEC_UA = {"User-Agent": "charty data pipeline (sincci1994@gmail.com)"}
 FUND_TICKERS = ["AAPL", "NVDA", "TSLA", "MSFT",  # ETF(QQQ·SPY)는 companyfacts 없음
-                "PLUG", "FCEL", "LCID", "RIVN", "JOBY", "IONQ"]  # R13 테마주도 재무 제공 — '공시 없음' 세션 축소
-MIN_ROWS = {"LCID": 12, "RIVN": 12, "JOBY": 12, "IONQ": 12}  # 2021년 상장 — XBRL 분기 수가 아직 적음 (기본 45)
+                "PLUG", "FCEL", "LCID", "RIVN", "JOBY", "IONQ",  # R13 테마주도 재무 제공 — '공시 없음' 세션 축소
+                # R15 확장 — TSM은 외국 발행사(IFRS 20-F)라 us-gaap companyfacts 미제공 → 제외
+                "AMD", "INTC", "MU", "AVGO", "QCOM",
+                "JPM", "JNJ", "KO", "XOM", "CAT", "DIS",
+                "CROX", "GPRO", "IRBT", "FSLR", "KTOS", "SFIX"]
+MIN_ROWS = {"LCID": 12, "RIVN": 12, "JOBY": 12, "IONQ": 12,  # 2021년 상장 — XBRL 분기 수가 아직 적음 (기본 45)
+            "GPRO": 40, "SFIX": 30}  # 2014·2017년 상장
 REV_TAGS = ["Revenues", "SalesRevenueNet", "RevenueFromContractWithCustomerExcludingAssessedTax"]  # 회계기준 변천(ASC 606 등)으로 태그가 갈림 — 병합
 
 

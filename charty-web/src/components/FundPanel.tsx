@@ -1,6 +1,8 @@
 import { Fragment } from 'react'
+import CoachCard from './CoachCard'
+import { fundCoach, macroSignals } from '../lib/coach'
 import { fmtUsd, fundView, type FundRow, type OpYoy } from '../lib/fund'
-import type { FundQuarter } from '../types'
+import type { EconIndicator, FundQuarter } from '../types'
 
 // R10 재무 탭 — 공시일(filed) 이전 분기만 노출(미래 차단), 분기 라벨은 상대 표기(블라인드 정책).
 // 절대액 표시는 의도적 선택: 규모로 종목 추정이 가능하지만 실가격 노출과 동급으로 수용 (기획서 6장)
@@ -26,7 +28,7 @@ const METRICS: { label: string; cell: (r: FundRow) => React.ReactNode }[] = [
   { label: '영업이익 YoY', cell: (r) => opYoyCell(r.opYoy) },
 ]
 
-export default function FundPanel({ quarters, nowTs, price }: { quarters?: FundQuarter[]; nowTs: number; price: number }) {
+export default function FundPanel({ quarters, nowTs, price, econ }: { quarters?: FundQuarter[]; nowTs: number; price: number; econ?: EconIndicator[] | null }) {
   const view = quarters?.length ? fundView(quarters, nowTs, price) : null
   const empty = (msg: string) => (
     <div className="card empty" style={{ minHeight: 320, justifyContent: 'center' }}>{msg}</div>
@@ -38,6 +40,7 @@ export default function FundPanel({ quarters, nowTs, price }: { quarters?: FundQ
 
   return (
     <div className="num" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <CoachCard lines={fundCoach(view, econ ? macroSignals(econ, nowTs) : null)} basis={econ ? '실적 · PER · 금리 기반' : '실적 · PER 기반'} isNew={view.isNew} />
       <div className="card" style={{ borderRadius: 14, padding: '13px 14px', gap: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>

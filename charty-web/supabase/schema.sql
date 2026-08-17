@@ -25,12 +25,16 @@ create table if not exists public.profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   nickname text not null,
   age_band text,                             -- '10대'~'60대+' | null(선택 안 함)
+  gender text,                               -- 남성/여성 | null(선택 안 함) — 아바타 성별 세트용
   markets text[] not null default '{}',      -- 국내주식/해외주식/코인 (중복)
   instruments text[] not null default '{}',  -- 현물/선물/옵션 (중복)
   style text,                                -- 단타/스윙/장기투자
   experience text,                           -- 입문/1년 미만/1~3년/3년 이상
   updated_at timestamptz not null default now()
 );
+
+-- 기존 배포 테이블 마이그레이션 (create if not exists는 컬럼을 추가하지 않음)
+alter table public.profiles add column if not exists gender text;
 
 alter table public.profiles enable row level security;
 

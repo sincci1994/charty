@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { polyline } from './AssetChart'
+import CoachCard from './CoachCard'
+import { macroCoach } from '../lib/coach'
 import type { Headline } from '../lib/data'
 import type { EconIndicator } from '../types'
 
@@ -211,6 +213,7 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
   return (
     <div className="num" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <Pins items={summary} />
+      <CoachCard lines={macroCoach(econ, nowTs)} basis="금리 · CPI · VIX 기반" isNew={isNew('FFR') || isNew('CPI')} />
 
       {headlines && (
         <div className="card" style={{ borderRadius: 14, padding: '13px 14px', gap: 0 }}>

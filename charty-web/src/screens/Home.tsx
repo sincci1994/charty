@@ -62,18 +62,19 @@ export default function Home() {
   const [region, setRegion] = useState<'kr' | 'us'>('kr')
   const [newsMore, setNewsMore] = useState(false)
   const session = useSession()
-  const [nickname, setNickname] = useState<string | null>(null)
+  const [profile, setProfile] = useState<{ nickname: string; ageBand: string | null; gender: string | null } | null>(null)
+  const nickname = profile?.nickname ?? null
 
   useEffect(() => {
     loadEcon().then(setEcon).catch(() => setEcon([]))
     loadNews().then(setNews).catch(() => setNews(null))
   }, [])
 
-  // 인사말 닉네임 — 프로필은 서버 전용(로컬 미러 없음, More.tsx와 동일 패턴). 미로그인·미작성이면 이름 생략
+  // 인사말 닉네임 + 아바타 시드(연령대·성별) — 프로필은 서버 전용(로컬 미러 없음, More.tsx와 동일 패턴). 미로그인·미작성이면 기본값
   useEffect(() => {
-    if (!session) return setNickname(null)
+    if (!session) return setProfile(null)
     let live = true
-    loadProfile().then((p) => { if (live) setNickname(p?.nickname ?? null) })
+    loadProfile().then((p) => { if (live) setProfile(p) })
     return () => { live = false }
   }, [session])
 
@@ -197,8 +198,15 @@ export default function Home() {
               </div>
             )}
           </div>
-          {/* R14 캐릭터 — 나이(누적 시뮬 시간) × 부(자산 배수), 10억 = 펜트하우스 컷신 */}
-          <img src={avatarSrc(totalAsset, simSec)} alt="내 캐릭터" width={92} height={92} style={{ flexShrink: 0, borderRadius: 14, objectFit: 'cover', width: 'min(92px, 24vw)', height: 'auto', aspectRatio: '1' }} />
+          {/* R14 캐릭터 — 나이(프로필 연령대+누적 시뮬 시간) × 부(자산 배수), 10억 = 펜트하우스 컷신.
+              성별 세트 에셋이 아직 없으면 onError로 공용 세트 1회 폴백 */}
+          <img
+            src={avatarSrc(totalAsset, simSec, profile?.ageBand, profile?.gender)}
+            onError={(e) => {
+              const fallback = avatarSrc(totalAsset, simSec, profile?.ageBand)
+              if (!e.currentTarget.src.endsWith(fallback)) e.currentTarget.src = fallback
+            }}
+            alt="내 캐릭터" width={92} height={92} style={{ flexShrink: 0, borderRadius: 14, objectFit: 'cover', width: 'min(92px, 24vw)', height: 'auto', aspectRatio: '1' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
           <Clock />

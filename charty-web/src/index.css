@@ -15,6 +15,9 @@
   --nav: rgba(245, 245, 247, 0.8);
   --accent-soft: rgba(61, 92, 255, 0.06);
   --toast-bg: rgba(29, 29, 31, 0.88);
+  /* R16 AI 해석 카드 — 디자인 원본 Simulation News.dc.html의 aiBorder/aiInner */
+  --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.55), rgba(61, 92, 255, 0.4) 55%, rgba(155, 47, 248, 0.55));
+  --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.05), rgba(155, 47, 248, 0.05)), #ffffff;
 }
 
 /* 다크 값: 시스템 다크(수동 라이트 미지정 시) + 수동 다크 — 두 셀렉터에 동일 적용 */
@@ -33,6 +36,8 @@
     --nav: rgba(30, 30, 30, 0.85);
     --accent-soft: rgba(92, 168, 255, 0.1);
     --toast-bg: rgba(58, 58, 62, 0.92);
+    --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.7), rgba(61, 92, 255, 0.55) 55%, rgba(155, 47, 248, 0.7));
+    --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #2a2a2c;
   }
 }
 :root[data-theme='dark'] {
@@ -49,6 +54,8 @@
   --nav: rgba(30, 30, 30, 0.85);
   --accent-soft: rgba(92, 168, 255, 0.1);
   --toast-bg: rgba(58, 58, 62, 0.92);
+  --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.7), rgba(61, 92, 255, 0.55) 55%, rgba(155, 47, 248, 0.7));
+  --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #2a2a2c;
 }
 
 html, body { height: 100%; }

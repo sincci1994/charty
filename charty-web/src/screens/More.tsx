@@ -8,7 +8,7 @@ import type { Profile } from '../types'
 
 export default function More() {
   const nav = useNav()
-  const { theme, setTheme, resetAll, syncError } = useStore()
+  const { theme, setTheme, coach, setCoach, resetAll, syncError } = useStore()
   const session = useSession()
   const dialogRef = useRef<HTMLDialogElement>(null)
   // undefined = 로딩/미로그인, null = 프로필 미작성 (온보딩 CTA 강조용)
@@ -88,6 +88,17 @@ export default function More() {
           <div className="label">화면 테마</div>
           <span className="dim" style={{ fontSize: 13 }}>{dark ? '다크' : '라이트'}</span>
           <button className={dark ? 'switch on' : 'switch'} onClick={() => setTheme(dark ? 'light' : 'dark')} aria-label="화면 테마 전환" />
+        </div>
+        <div className="setting-div" />
+        <div className="setting-row">
+          <div className="setting-icon" style={{ background: 'linear-gradient(135deg, #f5a623, #ff7a45)' }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18 h6 M10 21 h4 M12 3 a6 6 0 0 1 4 10.5 c-.8.7-1 1.6-1 2.5 h-6 c0-.9-.2-1.8-1-2.5 A6 6 0 0 1 12 3 Z" />
+            </svg>
+          </div>
+          <div className="label">AI 해석</div>
+          <span className="dim" style={{ fontSize: 13 }}>{coach ? '켬' : '끔'}</span>
+          <button className={coach ? 'switch on' : 'switch'} onClick={() => setCoach(!coach)} aria-label="AI 해석 켜고 끄기" />
         </div>
         <div className="setting-div" />
         <div className="setting-row" style={{ opacity: 0.7 }}>

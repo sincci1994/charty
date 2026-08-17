@@ -6,6 +6,7 @@ import type { Profile } from '../types'
 interface Row {
   nickname: string
   age_band: string | null
+  gender: string | null
   markets: string[] | null
   instruments: string[] | null
   style: string | null
@@ -15,6 +16,7 @@ interface Row {
 export const rowToProfile = (r: Row): Profile => ({
   nickname: r.nickname,
   ageBand: r.age_band,
+  gender: r.gender,
   markets: r.markets ?? [],
   instruments: r.instruments ?? [],
   style: r.style,
@@ -25,7 +27,7 @@ export const rowToProfile = (r: Row): Profile => ({
 export async function loadProfile(): Promise<Profile | null> {
   if (!supabase) return null
   try {
-    const { data, error } = await supabase.from('profiles').select('nickname, age_band, markets, instruments, style, experience').maybeSingle()
+    const { data, error } = await supabase.from('profiles').select('nickname, age_band, gender, markets, instruments, style, experience').maybeSingle()
     return error || !data ? null : rowToProfile(data as Row)
   } catch {
     return null
@@ -41,6 +43,7 @@ export async function saveProfile(p: Profile): Promise<boolean> {
       user_id: s.session.user.id,
       nickname: p.nickname,
       age_band: p.ageBand,
+      gender: p.gender,
       markets: p.markets,
       instruments: p.instruments,
       style: p.style,

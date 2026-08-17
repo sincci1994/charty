@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
-import { fmtW } from '../lib/data'
+import { fmtD } from '../lib/data'
 
 interface Props {
   kind: 'sl' | 'tp'
@@ -55,7 +55,7 @@ export default function RiskSheet({ kind, avgPrice, currentPrice, current, onClo
         <div className="risk-compare-col">
           <span className="dim" style={{ fontSize: 10 }}>기존</span>
           <span className="dim num" style={{ fontSize: 14, fontWeight: 600 }}>
-            {current != null ? `${fmtW(current)} (${pctOf(current)})` : '미설정'}
+            {current != null ? `${fmtD(current)} (${pctOf(current)})` : '미설정'}
           </span>
         </div>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -64,7 +64,7 @@ export default function RiskSheet({ kind, avgPrice, currentPrice, current, onClo
         <div className="risk-compare-col">
           <span className="dim" style={{ fontSize: 10 }}>새 값</span>
           <span className={`num ${isSl ? 'red' : 'green'}`} style={{ fontSize: 14, fontWeight: 700 }}>
-            {newV > 0 ? `${fmtW(newV)} (${pctOf(newV)})` : '—'}
+            {newV > 0 ? `${fmtD(newV)} (${pctOf(newV)})` : '—'}
           </span>
         </div>
       </div>

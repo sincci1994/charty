@@ -7,8 +7,8 @@ import NewsPanel from '../components/NewsPanel'
 import OrderSheet from '../components/OrderSheet'
 import RiskSheet from '../components/RiskSheet'
 import { simProgress, useStore } from '../store'
-import { LOOKBACK, TF, bollinger, ema, fmtW, loadCandles, loadEcon, loadFundamentals, loadNewsArchive, resampleCandles, rsi, styleLabel } from '../lib/data'
-import { equity } from '../lib/engine'
+import { LOOKBACK, TF, bollinger, ema, fmtD, fmtW, loadCandles, loadEcon, loadFundamentals, loadNewsArchive, resampleCandles, rsi, styleLabel } from '../lib/data'
+import { FX, equity } from '../lib/engine'
 import type { Headline } from '../lib/data'
 import type { Candle, EconIndicator, FundQuarter, Timeframe } from '../types'
 
@@ -19,6 +19,10 @@ const LEAK_NAMES: Partial<Record<string, string>> = {
   AAPL: 'apple', NVDA: 'nvidia', TSLA: 'tesla', MSFT: 'microsoft',
   // R13 테마주 — 심볼은 단어 경계 매칭(아래 필터), 회사명은 부분 매칭이라 PLUG는 풀네임으로 과필터 방지
   PLUG: 'plug power', FCEL: 'fuelcell', LCID: 'lucid', RIVN: 'rivian', JOBY: 'joby', IONQ: 'ionq',
+  // R15 확장 유니버스 — 헤드라인에서 가장 흔한 표기 1개씩 (AMD·TSM 등 심볼형 명칭은 심볼 필터가 커버)
+  AMD: 'advanced micro', INTC: 'intel', MU: 'micron', TSM: 'tsmc', AVGO: 'broadcom', QCOM: 'qualcomm',
+  JPM: 'jpmorgan', JNJ: 'johnson & johnson', KO: 'coca-cola', XOM: 'exxon', CAT: 'caterpillar', DIS: 'disney',
+  CROX: 'crocs', GPRO: 'gopro', IRBT: 'irobot', FSLR: 'first solar', KTOS: 'kratos', SFIX: 'stitch fix',
 }
 
 function progressText(pct: number) {
@@ -44,8 +48,11 @@ export default function Simulation() {
   // fund 3상태: null=미로드(로딩), 'error'=실패(재시도 버튼 — {}로 삼키면 실패가 '공시 없음'으로 위장됨), 객체=성공
   const [fund, setFund] = useState<Record<string, FundQuarter[]> | null | 'error'>(null)
   useEffect(() => {
-    if (tab === 'news') {
+    // econ은 재무 탭 도우미 해석(거시 교차)에도 쓰여 두 탭 모두에서 로드 (R16)
+    if (tab === 'news' || tab === 'fund') {
       if (!econ) loadEcon().then(setEcon).catch(() => setEcon([]))
+    }
+    if (tab === 'news') {
       if (!headlines) loadNewsArchive().then(setHeadlines).catch(() => setHeadlines([]))
     } else if (tab === 'fund' && fund === null) {
       loadFundamentals().then(setFund).catch(() => setFund('error'))
@@ -77,7 +84,7 @@ export default function Simulation() {
       const msg =
         fresh.length > 1
           ? `주문 ${fresh.length}건 체결`
-          : `${t.side === 'OPEN_LONG' ? '매수' : '매도'} ${t.qty}주 @ ${fmtW(t.price)} 체결`
+          : `${t.side === 'OPEN_LONG' ? '매수' : '매도'} ${t.qty}주 @ ${fmtD(t.price)} 체결`
       setToast({ id: Date.now(), msg })
     }
     prevTrades.current = n
@@ -268,7 +275,7 @@ export default function Simulation() {
             </button>
           </div>
         ) : (
-          <FundPanel quarters={fund[sim.symbol]} nowTs={nowTs} price={price} />
+          <FundPanel quarters={fund[sim.symbol]} nowTs={nowTs} price={price} econ={econ} />
         )
       ) : (
         <div style={{ position: 'relative' }}>
@@ -341,15 +348,15 @@ export default function Simulation() {
         <div className="fold-body">
           {!pos && sim.openOrders.length === 0 && <div className="empty" style={{ padding: '10px 0' }}>보유 종목 없음</div>}
           {pos && (() => {
-            const pPnl = (price - pos.avgPrice) * pos.qty
+            const pPnl = (price - pos.avgPrice) * pos.qty * FX
             const pPnlPct = ((price - pos.avgPrice) / pos.avgPrice) * 100
             const riskPct = (v: number) => `${v >= pos.avgPrice ? '+' : ''}${(((v - pos.avgPrice) / pos.avgPrice) * 100).toFixed(1)}%`
             return (
               <div className="pos-card">
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span className="small num" style={{ fontWeight: 600 }}>{pos.qty}주 · 평단 {fmtW(pos.avgPrice)}</span>
-                    <span className="dim num" style={{ fontSize: 11 }}>현재가 {fmtW(price)}</span>
+                    <span className="small num" style={{ fontWeight: 600 }}>{pos.qty}주 · 평단 {fmtD(pos.avgPrice)}</span>
+                    <span className="dim num" style={{ fontSize: 11 }}>현재가 {fmtD(price)}</span>
                   </div>
                   <span className={`small num ${pPnl >= 0 ? 'green' : 'red'}`} style={{ fontWeight: 700 }}>
                     {pPnl >= 0 ? '+' : '-'}{fmtW(Math.abs(pPnl))} ({pPnl >= 0 ? '+' : ''}{pPnlPct.toFixed(1)}%)
@@ -359,7 +366,7 @@ export default function Simulation() {
                   {([['sl', '손절', pos.sl, 'red'], ['tp', '목표', pos.tp, 'green']] as const).map(([kind, label, v, tone]) => (
                     <div key={kind} className="risk-row">
                       <span className={`num ${v != null ? tone : 'dim'}`} style={{ fontSize: 12, fontWeight: 600 }}>
-                        {v != null ? `${label} ${fmtW(v)} (${riskPct(v)})` : `${label} 미설정`}
+                        {v != null ? `${label} ${fmtD(v)} (${riskPct(v)})` : `${label} 미설정`}
                       </span>
                       {!sim.done && (
                         <button className="risk-edit-btn" onClick={() => setRiskEdit(kind)}>{v != null ? '수정' : '설정'}</button>
@@ -371,7 +378,7 @@ export default function Simulation() {
                   <summary>매수 내역</summary>
                   <div className="entry-list">
                     {(pos.entries ?? []).map((e, i) => (
-                      <div key={i} className="dim num" style={{ fontSize: 11 }}>{e.qty}주 @ {fmtW(e.price)}</div>
+                      <div key={i} className="dim num" style={{ fontSize: 11 }}>{e.qty}주 @ {fmtD(e.price)}</div>
                     ))}
                   </div>
                 </details>
@@ -386,7 +393,7 @@ export default function Simulation() {
                     {o.side === 'OPEN_LONG' ? '매수' : '매도'}
                   </span>
                   <span className="small num" style={{ flex: 1 }}>
-                    {o.qty}주 @ {fmtW(o.price)}
+                    {o.qty}주 @ {fmtD(o.price)}
                   </span>
                   <span className="dim" style={{ fontSize: 10 }}>대기</span>
                   <button className="cancel-btn" onClick={() => cancelOrder(o.id)}>
@@ -404,7 +411,7 @@ export default function Simulation() {
           <div className="trade-bar">
             <div className="trade-bar-info">
               <span className="dim small">자산 <b className="num" style={{ color: 'var(--text)' }}>{fmtW(eq)}</b></span>
-              <span className="dim small">현재가 <b className="num" style={{ color: 'var(--text)' }}>{fmtW(price)}</b></span>
+              <span className="dim small">현재가 <b className="num" style={{ color: 'var(--text)' }}>{fmtD(price)}</b></span>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="pill pill-long" style={{ flex: 1 }} onClick={() => setSheetSide('buy')}>매수</button>
@@ -412,7 +419,7 @@ export default function Simulation() {
             </div>
           </div>
           {sheetSide && (
-            <OrderSheet sim={sim} currentPrice={price} buy={sheetSide === 'buy'} onClose={() => setSheetSide(null)} />
+            <OrderSheet sim={sim} currentPrice={price} candle={candles[sim.cursor]} buy={sheetSide === 'buy'} onClose={() => setSheetSide(null)} />
           )}
           {riskEdit && pos && (
             <RiskSheet kind={riskEdit} avgPrice={pos.avgPrice} currentPrice={price} current={pos[riskEdit]} onClose={() => setRiskEdit(null)} />

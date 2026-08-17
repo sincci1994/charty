@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNav } from '../lib/nav'
-import { AGE_BANDS, EXPERIENCES, INSTRUMENTS, INVEST_STYLES, MARKETS } from '../types'
+import { AGE_BANDS, EXPERIENCES, GENDERS, INSTRUMENTS, INVEST_STYLES, MARKETS } from '../types'
 import { loadProfile, saveProfile } from '../lib/profile'
 import { supabase, useSession } from '../lib/supabase'
 
@@ -35,6 +35,7 @@ export default function Profile() {
   const [isNew, setIsNew] = useState(true)
   const [nickname, setNickname] = useState('')
   const [ageBand, setAgeBand] = useState<string | null>(null)
+  const [gender, setGender] = useState<string | null>(null)
   const [markets, setMarkets] = useState<string[]>([])
   const [instruments, setInstruments] = useState<string[]>([])
   const [style, setStyle] = useState<string | null>(null)
@@ -55,6 +56,7 @@ export default function Profile() {
         setIsNew(false)
         setNickname(p.nickname)
         setAgeBand(p.ageBand)
+        setGender(p.gender)
         setMarkets(p.markets)
         setInstruments(p.instruments)
         setStyle(p.style)
@@ -82,7 +84,7 @@ export default function Profile() {
   const save = async () => {
     setSaving(true)
     setErr(false)
-    const ok = await saveProfile({ nickname: nickname.trim(), ageBand, markets, instruments, style, experience })
+    const ok = await saveProfile({ nickname: nickname.trim(), ageBand, gender, markets, instruments, style, experience })
     setSaving(false)
     if (ok) nav(isNew ? '/' : '/more', { replace: true })
     else setErr(true)
@@ -107,6 +109,9 @@ export default function Profile() {
 
       <Label text="연령대" optional />
       <Chips options={AGE_BANDS} cols={3} isOn={(v) => ageBand === v} onPick={toggleOne(ageBand, setAgeBand)} />
+
+      <Label text="성별" optional />
+      <Chips options={GENDERS} cols={2} isOn={(v) => gender === v} onPick={toggleOne(gender, setGender)} />
 
       <Label text="주요 투자 시장" optional />
       <Chips options={MARKETS} cols={3} isOn={(v) => markets.includes(v)} onPick={toggleMulti(markets, setMarkets)} />

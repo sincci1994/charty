@@ -84,6 +84,7 @@ export interface SimEvent {
 
 // R12 계정 프로필 — 선택지 리터럴이 곧 표시 문자열이자 DB 저장값 (Unit 관례와 동일)
 export const AGE_BANDS = ['10대', '20대', '30대', '40대', '50대', '60대+'] as const
+export const GENDERS = ['남성', '여성'] as const // 아바타 성별 변형용 — 미선택 시 공용 세트
 export const MARKETS = ['국내주식', '해외주식', '코인'] as const
 export const INSTRUMENTS = ['현물', '선물', '옵션'] as const
 export const INVEST_STYLES = ['단타', '스윙', '장기투자'] as const // STYLES 라벨과 동일 어휘
@@ -92,6 +93,7 @@ export const EXPERIENCES = ['입문', '1년 미만', '1~3년', '3년 이상'] as
 export interface Profile {
   nickname: string
   ageBand: string | null
+  gender: string | null
   markets: string[]
   instruments: string[]
   style: string | null

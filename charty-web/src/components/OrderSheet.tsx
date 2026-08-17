@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ActiveSim } from '../types'
+import type { ActiveSim, Candle } from '../types'
 import { REASONS } from '../types'
 import { useStore } from '../store'
-import { fmtW } from '../lib/data'
+import { fmtD, fmtW } from '../lib/data'
+import { CAP, FEE, FX } from '../lib/engine'
 
 const PCTS = [25, 50, 75, 100] as const
 const SL_PCTS = [-3, -5, -10] as const
@@ -11,12 +12,13 @@ const TP_PCTS = [5, 10, 20] as const
 interface Props {
   sim: ActiveSim
   currentPrice: number
+  candle: Candle // 현재 커서 캔들 — 거래대금 대비 주문 비중 표시용
   buy: boolean // true=매수(OPEN_LONG), false=매도(CLOSE_LONG) — 현물 문법, 숏 없음
   onClose: () => void
 }
 
 // 열릴 때만 마운트됨 — 초기 state가 곧 열 때마다의 초기화
-export default function OrderSheet({ sim, currentPrice, buy, onClose }: Props) {
+export default function OrderSheet({ sim, currentPrice, candle, buy, onClose }: Props) {
   const placeOrder = useStore((s) => s.placeOrder)
   const ref = useRef<HTMLDialogElement>(null)
   const openedAt = useRef(Date.now()) // R6: 시트 열림→제출 소요시간
@@ -49,9 +51,12 @@ export default function OrderSheet({ sim, currentPrice, buy, onClose }: Props) {
   ].filter(Boolean)
 
   const pickPct = (p: number) => {
-    const n = buy ? Math.floor((sim.cash * p) / 100 / limitV) : Math.floor((avail * p) / 100)
+    const n = buy ? Math.floor((sim.cash * p) / 100 / (limitV * FX * (1 + FEE))) : Math.floor((avail * p) / 100)
     setQty(String(Math.max(0, n)))
   }
+
+  // 주문 명목가가 현재 캔들 거래대금에서 차지하는 비중 — 참여율 상한(CAP)을 넘으면 부분체결 예고
+  const tvPct = qtyV >= 1 && candle.v > 0 ? ((qtyV * limitV) / (candle.c * candle.v)) * 100 : null
 
   const toggleReason = (r: string) => {
     setMsg('')
@@ -88,7 +93,7 @@ export default function OrderSheet({ sim, currentPrice, buy, onClose }: Props) {
     setLimit(String(Math.max(tick, Math.round(((Number(limit) || currentPrice) + delta * tick) * 100) / 100)))
 
   const riskCaption = (pct: number, val: string) =>
-    val ? `${pct ? `${pct > 0 ? '+' : ''}${pct}% → ` : ''}${fmtW(Number(val))}` : ''
+    val ? `${pct ? `${pct > 0 ? '+' : ''}${pct}% → ` : ''}${fmtD(Number(val))}` : ''
 
   return (
     <dialog
@@ -124,7 +129,7 @@ export default function OrderSheet({ sim, currentPrice, buy, onClose }: Props) {
         수량
         <span className="dim small num" style={{ fontWeight: 400 }}>
           {qtyV >= 1
-            ? `${qtyV}주 ≈ ${fmtW(qtyV * limitV)}`
+            ? `${qtyV}주 ≈ ${fmtW(qtyV * limitV * FX)}`
             : buy
               ? `주문 가능 ${fmtW(sim.cash)}`
               : `매도 가능 ${avail}주`}
@@ -138,6 +143,12 @@ export default function OrderSheet({ sim, currentPrice, buy, onClose }: Props) {
         ))}
       </div>
       <input type="number" min={1} placeholder="직접 입력" value={qty} onChange={(e) => { setMsg(''); setQty(e.target.value) }} />
+      {tvPct != null && (
+        <div className="num" style={{ fontSize: 11, marginTop: 6, color: tvPct > CAP * 100 ? 'var(--red)' : 'var(--dim)' }}>
+          이 주문은 직전 캔들 거래대금의 {tvPct < 0.1 ? '0.1% 미만' : `약 ${tvPct.toFixed(1)}%`}
+          {tvPct > CAP * 100 && ' — 한 캔들에 다 체결되지 않고 나눠 체결될 수 있어요'}
+        </div>
+      )}
 
       <div className="field-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         왜 이 주문인가요?

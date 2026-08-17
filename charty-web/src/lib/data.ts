@@ -99,21 +99,32 @@ export function estTime(bars: number): string {
 export const fmtW = (v: number) =>
   `₩${v.toLocaleString(undefined, { maximumFractionDigits: Math.abs(v) < 1000 ? 2 : 0 })}`
 
+// 가격 표기($) — 가격은 캔들 원값($), 돈은 ₩라는 단위 규약(engine.ts)의 표시 짝
+export const fmtD = (v: number) =>
+  `$${v.toLocaleString(undefined, { maximumFractionDigits: Math.abs(v) < 1000 ? 2 : 0 })}`
+
 // R14 종목 세트 — tickers: null = 전체 (유니버스 원본은 tickers.json, 여기서 중복 정의하지 않음)
 export const SETS: Record<string, { label: string; vol: string | null; desc: string; tickers: readonly string[] | null }> = {
   BIGTECH: { label: '빅테크', vol: '중간', desc: '시가총액 상위 대형 기술주·지수 ETF. 흐름이 비교적 안정적이에요', tickers: ['QQQ', 'SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT'] },
+  SEMI: { label: '반도체·AI', vol: '중간', desc: 'AI·메모리·파운드리 대표주. 업황 사이클을 크게 타요', tickers: ['AMD', 'INTC', 'MU', 'TSM', 'AVGO', 'QCOM'] },
+  SP500: { label: 'S&P500 우량주', vol: '낮음', desc: '금융·헬스케어·에너지 등 섹터 대표 우량주. 느리지만 꾸준해요', tickers: ['JPM', 'JNJ', 'KO', 'XOM', 'CAT', 'DIS'] },
+  RUSSELL: { label: '러셀 스몰캡', vol: '높음', desc: '이름도 낯선 미국 중소형주. 급등도 급락도 크고 거래대금이 얇아요', tickers: ['CROX', 'GPRO', 'IRBT', 'FSLR', 'KTOS', 'SFIX'] },
   GROWTH: { label: '꿈팔이 성장주', vol: '높음', desc: '미래 서사와 기대감으로 움직이는 성장주', tickers: ['PLUG', 'FCEL', 'LCID', 'RIVN', 'JOBY', 'IONQ'] },
   ANY: { label: '랜덤 · 상관없음', vol: null, desc: '어떤 종목이 나올지 모르는 채로 연습해요', tickers: null },
 }
 export type SetKey = keyof typeof SETS
 
-// R14 홈 아바타 — 나이=누적 시뮬 시간(2년/5년 경계), 부=원금 대비 배수(0.99/1.6), 10억 = '한국 부자' 펜트하우스 컷신
+// R14 홈 아바타 — 나이=프로필 연령대 시작 나이+시뮬 경과(30/60 경계), 부=원금 대비 배수(0.99/1.6), 10억 = '한국 부자' 펜트하우스 컷신
+// 성별 세트는 파일명 프리픽스(m_/f_) — 에셋이 아직 없으면 호출부 <img onError>가 공용 세트로 폴백
 const YEAR = 31_536_000
-export function avatarSrc(totalAsset: number, simSec: number): string {
-  const age = simSec < 2 * YEAR ? 'child' : simSec < 5 * YEAR ? 'young' : 'old'
+const BAND_AGE: Record<string, number> = { '10대': 15, '20대': 25, '30대': 35, '40대': 45, '50대': 55, '60대+': 65 }
+const GENDER_PREFIX: Record<string, string> = { 남성: 'm_', 여성: 'f_' }
+export function avatarSrc(totalAsset: number, simSec: number, ageBand?: string | null, gender?: string | null): string {
+  const years = (BAND_AGE[ageBand ?? ''] ?? 25) + simSec / YEAR // 미설정·비로그인은 20대 취급
+  const age = years < 30 ? 'child' : years < 60 ? 'young' : 'old'
   const m = totalAsset / START_BALANCE
   const wealth = totalAsset >= 1_000_000_000 ? 'rich' : m < 0.99 ? '00' : m < 1.6 ? '01' : '02'
-  return `/avatar/${age}_${wealth}.png`
+  return `/avatar/${GENDER_PREFIX[gender ?? ''] ?? ''}${age}_${wealth}.png`
 }
 
 // 차트 경과시간(달력 기준, 초) 사람 표기 — "약 1년 3개월"·"약 3개월 12일"·"약 5일"·"약 6시간" (0 나머지 생략)

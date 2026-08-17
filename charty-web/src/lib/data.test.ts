@@ -56,19 +56,28 @@ describe('avatarSrc', () => {
   it('부 경계 — 배수 0.99/1.6, 신규 유저(배수 1.0)는 보통', () => {
     expect(avatarSrc(9_899_999, 0)).toBe('/avatar/child_00.png')
     expect(avatarSrc(10_000_000, 0)).toBe('/avatar/child_01.png')
-    expect(avatarSrc(16_000_000, 2 * Y)).toBe('/avatar/young_02.png')
+    expect(avatarSrc(16_000_000, 0)).toBe('/avatar/child_02.png')
   })
-  it('나이 경계 — 시뮬 2년/5년, 10억이면 펜트하우스 컷신', () => {
-    expect(avatarSrc(10_000_000, 2 * Y - 1)).toBe('/avatar/child_01.png')
-    expect(avatarSrc(10_000_000, 5 * Y)).toBe('/avatar/old_01.png')
-    expect(avatarSrc(1_000_000_000, 5 * Y)).toBe('/avatar/old_rich.png')
+  it('나이 = 연령대 시작 나이 + 시뮬 경과, 경계 30/60', () => {
+    expect(avatarSrc(10_000_000, 0, '30대')).toBe('/avatar/young_01.png') // 33세 유저는 어른부터 시작
+    expect(avatarSrc(10_000_000, 0, '60대+')).toBe('/avatar/old_01.png')
+    expect(avatarSrc(10_000_000, 5 * Y - 1)).toBe('/avatar/child_01.png') // 기본 25세 + 5년 미만 = 학생
+    expect(avatarSrc(10_000_000, 5 * Y)).toBe('/avatar/young_01.png')
+    expect(avatarSrc(10_000_000, 35 * Y, '20대')).toBe('/avatar/old_01.png') // 25 + 35 = 60
+    expect(avatarSrc(1_000_000_000, 0, '60대+')).toBe('/avatar/old_rich.png')
+  })
+  it('성별 프리픽스 — 미설정은 공용 세트', () => {
+    expect(avatarSrc(10_000_000, 0, '30대', '여성')).toBe('/avatar/f_young_01.png')
+    expect(avatarSrc(10_000_000, 0, '30대', '남성')).toBe('/avatar/m_young_01.png')
+    expect(avatarSrc(10_000_000, 0, null, null)).toBe('/avatar/child_01.png')
   })
 })
 
 describe('SETS', () => {
-  it('세트 티커 수 — 빅테크·꿈팔이 6종, 랜덤은 전체(null)', () => {
-    expect(SETS.BIGTECH.tickers).toHaveLength(6)
-    expect(SETS.GROWTH.tickers).toHaveLength(6)
+  it('세트 티커 수 — 각 6종, 랜덤은 전체(null), 세트 간 중복 없음', () => {
+    const keyed = ['BIGTECH', 'SEMI', 'SP500', 'RUSSELL', 'GROWTH']
+    for (const k of keyed) expect(SETS[k].tickers).toHaveLength(6)
     expect(SETS.ANY.tickers).toBeNull()
+    expect(new Set(keyed.flatMap((k) => SETS[k].tickers!)).size).toBe(30)
   })
 })
