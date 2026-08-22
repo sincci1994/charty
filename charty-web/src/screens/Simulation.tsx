@@ -22,7 +22,7 @@ const LEAK_NAMES: Partial<Record<string, string>> = {
   // R15 확장 유니버스 — 헤드라인에서 가장 흔한 표기 1개씩 (AMD·TSM 등 심볼형 명칭은 심볼 필터가 커버)
   AMD: 'advanced micro', INTC: 'intel', MU: 'micron', TSM: 'tsmc', AVGO: 'broadcom', QCOM: 'qualcomm',
   JPM: 'jpmorgan', JNJ: 'johnson & johnson', KO: 'coca-cola', XOM: 'exxon', CAT: 'caterpillar', DIS: 'disney',
-  CROX: 'crocs', GPRO: 'gopro', IRBT: 'irobot', FSLR: 'first solar', KTOS: 'kratos', SFIX: 'stitch fix',
+  CROX: 'crocs', GPRO: 'gopro', FSLR: 'first solar', KTOS: 'kratos', SFIX: 'stitch fix',
 }
 
 function progressText(pct: number) {

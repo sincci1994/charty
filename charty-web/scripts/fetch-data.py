@@ -25,7 +25,7 @@ TICKERS = [
     # R15 유니버스 확장 — 블라인드 강화 + 국면 다양성 (data.ts SETS와 짝)
     "AMD", "INTC", "MU", "TSM", "AVGO", "QCOM",     # 반도체·AI — 20년 사이클 산업
     "JPM", "JNJ", "KO", "XOM", "CAT", "DIS",        # S&P500 섹터 대표 우량주
-    "CROX", "GPRO", "IRBT", "FSLR", "KTOS", "SFIX", # 러셀 스몰캡 — 급등·급락 서사, 유동성 얇음
+    "CROX", "GPRO", "FSLR", "KTOS", "SFIX",         # 러셀 스몰캡 — 급등·급락 서사, 유동성 얇음 (IRBT는 '26 상폐로 제거)
 ]
 OUT = Path(__file__).resolve().parent.parent / "public" / "data"
 OUT.mkdir(parents=True, exist_ok=True)
@@ -106,29 +106,38 @@ FUND_TICKERS = ["AAPL", "NVDA", "TSLA", "MSFT",  # ETF(QQQ·SPY)는 companyfacts
                 # R15 확장 — TSM은 외국 발행사(IFRS 20-F)라 us-gaap companyfacts 미제공 → 제외
                 "AMD", "INTC", "MU", "AVGO", "QCOM",
                 "JPM", "JNJ", "KO", "XOM", "CAT", "DIS",
-                "CROX", "GPRO", "IRBT", "FSLR", "KTOS", "SFIX"]
+                "CROX", "GPRO", "FSLR", "KTOS", "SFIX"]
 MIN_ROWS = {"LCID": 12, "RIVN": 12, "JOBY": 12, "IONQ": 12,  # 2021년 상장 — XBRL 분기 수가 아직 적음 (기본 45)
             "GPRO": 40, "SFIX": 30}  # 2014·2017년 상장
+# 법인 개편(지주사 전환 등)으로 티커맵 CIK의 XBRL 이력이 짧은 종목 — 구 법인 CIK를 병합.
+# 중복 공시기간은 pool의 filed 최솟값이 이겨 point-in-time 원칙 유지.
+EXTRA_CIKS = {"XOM": [34088],              # Exxon Mobil Corp — '26 지주사(ExxonMobil Holdings) 전환 전 본체
+              "DIS": [1001039],            # Walt Disney Co — '19 Fox 인수 지주사 전환 전 본체
+              "AVGO": [1649338, 1441634]}  # Broadcom Ltd('16 합병) + Avago('18 미국 재설립 전)
 REV_TAGS = ["Revenues", "SalesRevenueNet", "RevenueFromContractWithCustomerExcludingAssessedTax"]  # 회계기준 변천(ASC 606 등)으로 태그가 갈림 — 병합
 
 
-def edgar_quarters(cik, splits):
-    """분기 재무 [[filedTs, endTs, rev, opInc, epsAdj], ...] endTs 오름차순.
+def edgar_quarters(ciks, splits):
+    """분기 재무 [[filedTs, endTs, rev, opInc, epsAdj], ...] endTs 오름차순. ciks는 [현행, 구법인...].
     epsAdj는 분할 조정(기간 이후 분할비로 나눔) — 캔들이 yfinance 조정가라 기준을 맞춰야 PER이 성립.
     가정: '기간말~공시' 사이에 낀 분할(ASC 260 소급조정) 미처리 — 낀 분기(분할당 최대 1개)의 EPS만
     이중 조정되는 근사 오차. R13 테마주 역분할(FCEL '19.05 등)이 해당될 수 있으나 한정적이라 수용."""
-    r = requests.get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json", headers=SEC_UA, timeout=60)
-    r.raise_for_status()
-    gaap = r.json()["facts"]["us-gaap"]
+    gaaps = []
+    for cik in ciks:
+        r = requests.get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json", headers=SEC_UA, timeout=60)
+        r.raise_for_status()
+        gaaps.append(r.json()["facts"]["us-gaap"])
+        time.sleep(0.3)  # SEC fair access(10req/s)에 여유
 
     def entries(tags, unit):
-        pool = {}  # (start, end) -> (filed, val) — filed 최솟값(최초 공시)
-        for tag in tags:
-            for e in gaap.get(tag, {}).get("units", {}).get(unit, []):
-                if e.get("start") and e.get("end") and e.get("val") is not None and e.get("filed"):
-                    k = (e["start"], e["end"])
-                    if k not in pool or e["filed"] < pool[k][0]:
-                        pool[k] = (e["filed"], e["val"])
+        pool = {}  # (start, end) -> (filed, val) — filed 최솟값(최초 공시)이 법인 간 중복도 정리
+        for gaap in gaaps:
+            for tag in tags:
+                for e in gaap.get(tag, {}).get("units", {}).get(unit, []):
+                    if e.get("start") and e.get("end") and e.get("val") is not None and e.get("filed"):
+                        k = (e["start"], e["end"])
+                        if k not in pool or e["filed"] < pool[k][0]:
+                            pool[k] = (e["filed"], e["val"])
         # fp/form은 못 믿음(fp:"Q3"에 9개월 누적이 섞여 있음) — 기간 길이로 분기/연간 판별
         q, fy = {}, {}  # end -> (filed, val)
         for (start, end), fv in pool.items():
@@ -171,7 +180,7 @@ try:
     fund = {}
     for sym in FUND_TICKERS:
         try:
-            rows = edgar_quarters(cikmap[sym], yf.Ticker(sym).splits)
+            rows = edgar_quarters([cikmap[sym]] + EXTRA_CIKS.get(sym, []), yf.Ticker(sym).splits)
             # 검산 — 실패 시 이 종목만 제외 (이전 파일 머지가 어제의 좋은 데이터 보존). XBRL은 ~2009년부터
             assert len(rows) >= MIN_ROWS.get(sym, 45), f"{sym}: rows={len(rows)}"
             assert all(x[0] > x[1] for x in rows), f"{sym}: filed <= end"

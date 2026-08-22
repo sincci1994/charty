@@ -108,7 +108,7 @@ export const SETS: Record<string, { label: string; vol: string | null; desc: str
   BIGTECH: { label: '빅테크', vol: '중간', desc: '시가총액 상위 대형 기술주·지수 ETF. 흐름이 비교적 안정적이에요', tickers: ['QQQ', 'SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT'] },
   SEMI: { label: '반도체·AI', vol: '중간', desc: 'AI·메모리·파운드리 대표주. 업황 사이클을 크게 타요', tickers: ['AMD', 'INTC', 'MU', 'TSM', 'AVGO', 'QCOM'] },
   SP500: { label: 'S&P500 우량주', vol: '낮음', desc: '금융·헬스케어·에너지 등 섹터 대표 우량주. 느리지만 꾸준해요', tickers: ['JPM', 'JNJ', 'KO', 'XOM', 'CAT', 'DIS'] },
-  RUSSELL: { label: '러셀 스몰캡', vol: '높음', desc: '이름도 낯선 미국 중소형주. 급등도 급락도 크고 거래대금이 얇아요', tickers: ['CROX', 'GPRO', 'IRBT', 'FSLR', 'KTOS', 'SFIX'] },
+  RUSSELL: { label: '러셀 스몰캡', vol: '높음', desc: '이름도 낯선 미국 중소형주. 급등도 급락도 크고 거래대금이 얇아요', tickers: ['CROX', 'GPRO', 'FSLR', 'KTOS', 'SFIX'] },
   GROWTH: { label: '꿈팔이 성장주', vol: '높음', desc: '미래 서사와 기대감으로 움직이는 성장주', tickers: ['PLUG', 'FCEL', 'LCID', 'RIVN', 'JOBY', 'IONQ'] },
   ANY: { label: '랜덤 · 상관없음', vol: null, desc: '어떤 종목이 나올지 모르는 채로 연습해요', tickers: null },
 }
