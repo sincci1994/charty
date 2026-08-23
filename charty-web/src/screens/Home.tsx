@@ -4,7 +4,7 @@ import AssetChart from '../components/AssetChart'
 import { Pins, arrowOf, zoneOf } from '../components/NewsPanel'
 import { START_BALANCE, avatarSrc, fmtDur, fmtW, loadEcon, loadNews } from '../lib/data'
 import { equity } from '../lib/engine'
-import { loadProfile } from '../lib/profile'
+import { cachedProfile, loadProfile } from '../lib/profile'
 import { assetSeries, cumulativeReport, cumulativeSimTime } from '../lib/report'
 import { useSession } from '../lib/supabase'
 import { simProgress, useStore } from '../store'
@@ -62,7 +62,7 @@ export default function Home() {
   const [region, setRegion] = useState<'kr' | 'us'>('kr')
   const [newsMore, setNewsMore] = useState(false)
   const session = useSession()
-  const [profile, setProfile] = useState<{ nickname: string; ageBand: string | null; gender: string | null } | null>(null)
+  const [profile, setProfile] = useState<{ nickname: string; ageBand: string | null; gender: string | null } | null>(cachedProfile())
   const nickname = profile?.nickname ?? null
 
   useEffect(() => {
@@ -70,9 +70,10 @@ export default function Home() {
     loadNews().then(setNews).catch(() => setNews(null))
   }, [])
 
-  // 인사말 닉네임 + 아바타 시드(연령대·성별) — 프로필은 서버 전용(로컬 미러 없음, More.tsx와 동일 패턴). 미로그인·미작성이면 기본값
+  // 인사말 닉네임 + 아바타 시드(연령대·성별) — 로컬 미러 즉시 표시 + 서버로 조용히 갱신(SWR, More.tsx와 동일 패턴).
+  // 세션 미복원(null) 구간엔 미러를 유지 — 로그아웃 시엔 shell이 미러를 지워 cachedProfile()이 null
   useEffect(() => {
-    if (!session) return setProfile(null)
+    if (!session) return setProfile(cachedProfile())
     let live = true
     loadProfile().then((p) => { if (live) setProfile(p) })
     return () => { live = false }

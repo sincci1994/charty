@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNav } from '../lib/nav'
 import { useStore } from '../store'
 import { supabase, useSession } from '../lib/supabase'
-import { loadProfile } from '../lib/profile'
+import { cachedProfile, loadProfile } from '../lib/profile'
 import AuthButtons from '../components/AuthButtons'
 import type { Profile } from '../types'
 
@@ -11,10 +11,10 @@ export default function More() {
   const { theme, setTheme, coach, setCoach, resetAll, syncError } = useStore()
   const session = useSession()
   const dialogRef = useRef<HTMLDialogElement>(null)
-  // undefined = 로딩/미로그인, null = 프로필 미작성 (온보딩 CTA 강조용)
-  const [profile, setProfile] = useState<Profile | null | undefined>(undefined)
+  // undefined = 로딩/미로그인, null = 프로필 미작성 (온보딩 CTA 강조용). 초기값은 로컬 미러(SWR — Home과 동일)
+  const [profile, setProfile] = useState<Profile | null | undefined>(cachedProfile() ?? undefined)
   useEffect(() => {
-    if (!session) return setProfile(undefined)
+    if (!session) return setProfile(cachedProfile() ?? undefined)
     let live = true
     loadProfile().then((p) => { if (live) setProfile(p) })
     return () => { live = false }

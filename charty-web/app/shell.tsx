@@ -77,6 +77,7 @@ export default function Shell({ children }: { children: ReactNode }) {
     if (!supabase) return
     initStateSync() // 변이 감지 → 디바운스 push 구독 (1회)
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') localStorage.removeItem('charty:profile') // 프로필 미러 무효화 — 로그아웃 후 닉네임 잔존 방지
       if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
       setTimeout(async () => {
         if (wiping) return

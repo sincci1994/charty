@@ -74,10 +74,11 @@ describe('avatarSrc', () => {
 })
 
 describe('SETS', () => {
-  it('세트 티커 수 — 각 6종, 랜덤은 전체(null), 세트 간 중복 없음', () => {
+  it('세트 티커 수 — 러셀은 5종(IRBT 상폐 제거), 나머지 6종, 랜덤은 전체(null), 세트 간 중복 없음', () => {
     const keyed = ['BIGTECH', 'SEMI', 'SP500', 'RUSSELL', 'GROWTH']
-    for (const k of keyed) expect(SETS[k].tickers).toHaveLength(6)
+    for (const k of keyed) expect(SETS[k].tickers).toHaveLength(k === 'RUSSELL' ? 5 : 6)
     expect(SETS.ANY.tickers).toBeNull()
-    expect(new Set(keyed.flatMap((k) => SETS[k].tickers!)).size).toBe(30)
+    const all = keyed.flatMap((k) => SETS[k].tickers!)
+    expect(new Set(all).size).toBe(all.length) // 중복 없음 (총 수는 세트 구성에 따름)
   })
 })
