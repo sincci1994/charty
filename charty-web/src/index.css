@@ -1,4 +1,4 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; } /* 모바일 탭 파란 하이라이트 제거 — 피드백은 .selected·:active가 담당 */
 
 :root {
   --grad: linear-gradient(135deg, #1fb6ff 0%, #3d5cff 55%, #9b2ff8 100%);
@@ -21,41 +21,42 @@
 }
 
 /* 다크 값: 시스템 다크(수동 라이트 미지정 시) + 수동 다크 — 두 셀렉터에 동일 적용 */
+/* 다크 램프는 앱 아이콘의 남색 계열(#070E26~#121E43)에 맞춤 — 스플래시·상태바(#0B1226)와 한 톤 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #1e1e1e;
-    --card: #2a2a2c;
-    --card2: #343436;
-    --hairline: #3e3e40;
+    --bg: #0b1226;
+    --card: #161d33;
+    --card2: #1f2740;
+    --hairline: #2a3248;
     --accent: #5ca8ff;
     --green: #30d158;
     --red: #ff453a;
     --danger: #ff453a;
     --text: #f5f5f7;
     --dim: #b5b5ba;
-    --nav: rgba(30, 30, 30, 0.85);
+    --nav: rgba(11, 18, 38, 0.85);
     --accent-soft: rgba(92, 168, 255, 0.1);
-    --toast-bg: rgba(58, 58, 62, 0.92);
+    --toast-bg: rgba(42, 50, 72, 0.92);
     --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.7), rgba(61, 92, 255, 0.55) 55%, rgba(155, 47, 248, 0.7));
-    --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #2a2a2c;
+    --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #161d33;
   }
 }
 :root[data-theme='dark'] {
-  --bg: #1e1e1e;
-  --card: #2a2a2c;
-  --card2: #343436;
-  --hairline: #3e3e40;
+  --bg: #0b1226;
+  --card: #161d33;
+  --card2: #1f2740;
+  --hairline: #2a3248;
   --accent: #5ca8ff;
   --green: #30d158;
   --red: #ff453a;
   --danger: #ff453a;
   --text: #f5f5f7;
   --dim: #b5b5ba;
-  --nav: rgba(30, 30, 30, 0.85);
+  --nav: rgba(11, 18, 38, 0.85);
   --accent-soft: rgba(92, 168, 255, 0.1);
-  --toast-bg: rgba(58, 58, 62, 0.92);
+  --toast-bg: rgba(42, 50, 72, 0.92);
   --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.7), rgba(61, 92, 255, 0.55) 55%, rgba(155, 47, 248, 0.7));
-  --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #2a2a2c;
+  --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #161d33;
 }
 
 html, body { height: 100%; }
