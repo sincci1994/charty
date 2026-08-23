@@ -6,3 +6,4 @@ app-release-*.apk
 app-release-*.aab
 build/
 .gradle/
+*.idsig
