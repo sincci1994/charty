@@ -1,0 +1,5 @@
+<!-- 수작업 파일 (bubblewrap 템플릿 아님 — update가 안 만짐).
+     LauncherActivity 전용 테마 — 기본은 기존 앱 테마와 동일, v31에서 시스템 스플래시 오버라이드 -->
+<resources>
+    <style name="Theme.Charty.Launcher" parent="@android:style/Theme.Translucent.NoTitleBar" />
+</resources>

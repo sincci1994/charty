@@ -44,8 +44,13 @@ app/build.gradle의 twaManifest 맵 → resValue → Android 리소스
 git checkout -- charty-android/app/src/main/res/drawable-hdpi/splash.png charty-android/app/src/main/res/drawable-mdpi/splash.png charty-android/app/src/main/res/drawable-xhdpi/splash.png charty-android/app/src/main/res/drawable-xxhdpi/splash.png charty-android/app/src/main/res/drawable-xxxhdpi/splash.png
 ```
 (git이 재적용 메커니즘 — update 후 diff에 splash.png가 뜨면 이 규칙을 잊은 것이다.)
-참고: Android 12+의 시스템 스플래시(런처 아이콘 잠깐 표시)는 OS 동작이라 남는다 — 거슬리면 `values-v31`
-테마 오버라이드로 아이콘을 투명화할 수 있으나 update 생존성이 불확실해 보류.
+**예외 2 — 시스템 스플래시 무력화 (2026-08-24)**: Android 12+가 런처 아이콘을 확대·크롭해 띄우는
+시스템 스플래시도 남색만 보이게 오버라이드했다. 수작업 파일 `res/values/themes.xml` + `res/values-v31/themes.xml`
+(bubblewrap 템플릿 아님 — update가 안 만짐) + **AndroidManifest.xml의 LauncherActivity에
+`android:theme="@style/Theme.Charty.Launcher"` 1줄**(이건 update가 되돌림 — update 후 splash.png와 함께
+`git checkout -- charty-android/app/src/main/AndroidManifest.xml`로 복원. 단, twa-manifest 설정을 바꿔서
+manifest에 정당한 변경이 생긴 update라면 checkout 대신 theme 속성 1줄만 수동 재추가).
+결과: 실행 순간부터 로고 없이 남색 → 웹 스플래시의 그려지는 애니메이션으로만 로고 등장.
 
 실증 사례 (2026-08-24): gradle.properties의 힙 조정(1GB)이 update로 1536m 템플릿에 되돌아가 빌드가 재실패.
 근본 해결은 프로젝트 밖 — **64비트 JDK를 `~/.bubblewrap/jdk-x64/`에 두고 `~/.bubblewrap/config.json`의

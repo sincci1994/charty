@@ -1,0 +1,9 @@
+<!-- 수작업 파일 (bubblewrap 템플릿 아님). Android 12+ 시스템 스플래시가 런처 아이콘을
+     확대·크롭해 띄우는 것을 무력화 — 아이콘 투명 + 배경 남색이라 실행 순간부터 남색만 보이고,
+     로고는 웹 스플래시의 그려지는 애니메이션으로만 등장한다. -->
+<resources>
+    <style name="Theme.Charty.Launcher" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">#0A0F26</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+    </style>
+</resources>
