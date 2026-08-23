@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.sincci1994.charty",
+      "sha256_cert_fingerprints": [
+        "F2:3D:D8:2B:F6:5A:6E:56:92:FF:C4:36:E6:3C:A6:EA:7F:58:45:FC:E3:6C:09:AE:45:C1:1C:51:3B:96:C2:C2"
+      ]
+    }
+  }
+]
