@@ -86,8 +86,18 @@ export default function More() {
             </svg>
           </div>
           <div className="label">화면 테마</div>
-          <span className="dim" style={{ fontSize: 13 }}>{dark ? '다크' : '라이트'}</span>
-          <button className={dark ? 'switch on' : 'switch'} onClick={() => setTheme(dark ? 'light' : 'dark')} aria-label="화면 테마 전환" />
+          <div style={{ display: 'flex', gap: 6 }}>
+            {([['light', '라이트'], ['dark', '다크'], ['charty', '차티']] as const).map(([t, label]) => (
+              <button
+                key={t}
+                className={`opt${(theme ?? (dark ? 'dark' : 'light')) === t ? ' selected' : ''}`}
+                style={{ fontSize: 12, padding: '7px 12px', borderRadius: 999 }}
+                onClick={() => setTheme(t)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="setting-div" />
         <div className="setting-row">

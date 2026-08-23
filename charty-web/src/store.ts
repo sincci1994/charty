@@ -21,13 +21,13 @@ interface State {
   records: SimRecord[]
   customs: CustomStyle[]
   candles: Candle[] // 활성 시뮬의 전체 캔들 (localStorage에 저장 안 함)
-  theme: 'light' | 'dark' | null // null = 시스템 설정 따름
+  theme: 'light' | 'dark' | 'charty' | null // null = 시스템 설정 따름, charty = 브랜드 남색 그라데이션
   coach: boolean // R16 — 뉴스·재무 탭 도우미 해석 카드 (기기 로컬 설정)
   waitlistAt: number | null // R7 지불의사 게이트 — '미리 신청하기' 클릭 시각
   welcomed: boolean // R12 — 첫 방문 웰컴 화면을 지나쳤는가 (기록 있는 기존 유저는 게이트가 자동 통과)
   stateUpdatedAt: number // R13 — 동기화 슬라이스(SyncedState)의 마지막 변이 시각, 기기 간 LWW 비교 기준
   syncError: boolean // R13 — 마지막 pull 실패 여부 (비영속, More 문구용)
-  setTheme: (t: 'light' | 'dark') => void
+  setTheme: (t: 'light' | 'dark' | 'charty') => void
   setCoach: (v: boolean) => void
   setWelcomed: () => void
 

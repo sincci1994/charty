@@ -22,28 +22,45 @@
 }
 
 /* 다크 값: 시스템 다크(수동 라이트 미지정 시) + 수동 다크 — 두 셀렉터에 동일 적용 */
-/* 다크 램프는 Launch 디자인의 남색 그라데이션(#101838→#0A0F26→#06081A) 계열 — 아이콘·스플래시·상태바와 한 톤 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0a0f26;
-    --bg-image: radial-gradient(130% 100% at 50% 0%, #101838 0%, #0a0f26 48%, #06081a 100%);
-    --card: #151c33;
-    --card2: #1e2542;
-    --hairline: #252e4d;
+    --bg: #1e1e1e;
+    --card: #2a2a2c;
+    --card2: #343436;
+    --hairline: #3e3e40;
     --accent: #5ca8ff;
     --green: #30d158;
     --red: #ff453a;
     --danger: #ff453a;
     --text: #f5f5f7;
-    --dim: #8a93be;
-    --nav: rgba(10, 15, 38, 0.85);
+    --dim: #b5b5ba;
+    --nav: rgba(30, 30, 30, 0.85);
     --accent-soft: rgba(92, 168, 255, 0.1);
-    --toast-bg: rgba(38, 46, 72, 0.92);
+    --toast-bg: rgba(58, 58, 62, 0.92);
     --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.7), rgba(61, 92, 255, 0.55) 55%, rgba(155, 47, 248, 0.7));
-    --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #151c33;
+    --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #2a2a2c;
   }
 }
 :root[data-theme='dark'] {
+  --bg: #1e1e1e;
+  --card: #2a2a2c;
+  --card2: #343436;
+  --hairline: #3e3e40;
+  --accent: #5ca8ff;
+  --green: #30d158;
+  --red: #ff453a;
+  --danger: #ff453a;
+  --text: #f5f5f7;
+  --dim: #b5b5ba;
+  --nav: rgba(30, 30, 30, 0.85);
+  --accent-soft: rgba(92, 168, 255, 0.1);
+  --toast-bg: rgba(58, 58, 62, 0.92);
+  --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.7), rgba(61, 92, 255, 0.55) 55%, rgba(155, 47, 248, 0.7));
+  --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #2a2a2c;
+}
+/* 차티 테마 — Launch 디자인의 남색 그라데이션(#101838→#0A0F26→#06081A), 아이콘·스플래시와 한 톤.
+   시스템 다크의 :root:not([data-theme='light'])와 동일 특이도라 반드시 뒤에 와야 이긴다 */
+:root[data-theme='charty'] {
   --bg: #0a0f26;
   --bg-image: radial-gradient(130% 100% at 50% 0%, #101838 0%, #0a0f26 48%, #06081a 100%);
   --card: #151c33;
