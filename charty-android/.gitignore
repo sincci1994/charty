@@ -1,0 +1,8 @@
+# 서명 키·비밀번호는 절대 커밋 금지 — 비밀번호 관리자 + 오프라인 백업으로만 보관
+*.keystore
+*.jks
+# 빌드 산출물
+app-release-*.apk
+app-release-*.aab
+build/
+.gradle/
