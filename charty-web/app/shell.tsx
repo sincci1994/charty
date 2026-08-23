@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useStore } from '../src/store'
+import Splash from '../src/components/Splash'
 import { START_BALANCE } from '../src/lib/data'
 import { supabase } from '../src/lib/supabase'
 import { applyServer, initStateSync, pickState, pullState, pushState, syncRecords } from '../src/lib/sync'
@@ -34,6 +35,25 @@ export default function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
   }, [])
+
+  // 설치형 앱 콜드 스타트 브랜드 스플래시 — 실행(브라우저 세션)당 1회. /welcome(자체 스플래시)과
+  // 웰컴 게이트로 갈 신규 유저는 제외해 이중 노출 방지
+  const [splash, setSplash] = useState<'on' | 'off' | null>(null)
+  useEffect(() => {
+    try {
+      if (!matchMedia('(display-mode: standalone)').matches || sessionStorage.getItem('charty:splashed')) return
+      sessionStorage.setItem('charty:splashed', '1')
+      const s = useStore.getState()
+      const willWelcome = !s.welcomed && s.records.length === 0 && !s.activeSim
+      if (window.location.pathname.startsWith('/welcome') || willWelcome) return
+      setSplash('on')
+    } catch { /* sessionStorage 접근 불가 환경 — 스플래시 생략 */ }
+  }, [])
+  useEffect(() => {
+    if (!splash) return
+    const t = setTimeout(() => setSplash(splash === 'on' ? 'off' : null), splash === 'on' ? 3000 : 700)
+    return () => clearTimeout(t)
+  }, [splash])
 
   // ponytail: 구 HashRouter URL(/#/sim) 리다이렉트 — 몇 달 뒤 삭제
   useEffect(() => {
@@ -105,6 +125,11 @@ export default function Shell({ children }: { children: ReactNode }) {
 
   return (
     <div className="app">
+      {splash && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
+          <Splash hidden={splash === 'off'} onSkip={() => setSplash('off')} />
+        </div>
+      )}
       <main className={onSim ? 'content no-tab' : 'content'}>{mounted ? children : null}</main>
       {!onSim && (
         <nav className="tabbar">

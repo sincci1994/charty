@@ -15,54 +15,59 @@
   --nav: rgba(245, 245, 247, 0.8);
   --accent-soft: rgba(61, 92, 255, 0.06);
   --toast-bg: rgba(29, 29, 31, 0.88);
+  --bg-image: none; /* 다크에서만 Launch 디자인의 radial 그라데이션 */
   /* R16 AI 해석 카드 — 디자인 원본 Simulation News.dc.html의 aiBorder/aiInner */
   --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.55), rgba(61, 92, 255, 0.4) 55%, rgba(155, 47, 248, 0.55));
   --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.05), rgba(155, 47, 248, 0.05)), #ffffff;
 }
 
 /* 다크 값: 시스템 다크(수동 라이트 미지정 시) + 수동 다크 — 두 셀렉터에 동일 적용 */
-/* 다크 램프는 앱 아이콘의 남색 계열(#070E26~#121E43)에 맞춤 — 스플래시·상태바(#0B1226)와 한 톤 */
+/* 다크 램프는 Launch 디자인의 남색 그라데이션(#101838→#0A0F26→#06081A) 계열 — 아이콘·스플래시·상태바와 한 톤 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0b1226;
-    --card: #161d33;
-    --card2: #1f2740;
-    --hairline: #2a3248;
+    --bg: #0a0f26;
+    --bg-image: radial-gradient(130% 100% at 50% 0%, #101838 0%, #0a0f26 48%, #06081a 100%);
+    --card: #151c33;
+    --card2: #1e2542;
+    --hairline: #252e4d;
     --accent: #5ca8ff;
     --green: #30d158;
     --red: #ff453a;
     --danger: #ff453a;
     --text: #f5f5f7;
-    --dim: #b5b5ba;
-    --nav: rgba(11, 18, 38, 0.85);
+    --dim: #8a93be;
+    --nav: rgba(10, 15, 38, 0.85);
     --accent-soft: rgba(92, 168, 255, 0.1);
-    --toast-bg: rgba(42, 50, 72, 0.92);
+    --toast-bg: rgba(38, 46, 72, 0.92);
     --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.7), rgba(61, 92, 255, 0.55) 55%, rgba(155, 47, 248, 0.7));
-    --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #161d33;
+    --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #151c33;
   }
 }
 :root[data-theme='dark'] {
-  --bg: #0b1226;
-  --card: #161d33;
-  --card2: #1f2740;
-  --hairline: #2a3248;
+  --bg: #0a0f26;
+  --bg-image: radial-gradient(130% 100% at 50% 0%, #101838 0%, #0a0f26 48%, #06081a 100%);
+  --card: #151c33;
+  --card2: #1e2542;
+  --hairline: #252e4d;
   --accent: #5ca8ff;
   --green: #30d158;
   --red: #ff453a;
   --danger: #ff453a;
   --text: #f5f5f7;
-  --dim: #b5b5ba;
-  --nav: rgba(11, 18, 38, 0.85);
+  --dim: #8a93be;
+  --nav: rgba(10, 15, 38, 0.85);
   --accent-soft: rgba(92, 168, 255, 0.1);
-  --toast-bg: rgba(42, 50, 72, 0.92);
+  --toast-bg: rgba(38, 46, 72, 0.92);
   --ai-border: linear-gradient(135deg, rgba(31, 182, 255, 0.7), rgba(61, 92, 255, 0.55) 55%, rgba(155, 47, 248, 0.7));
-  --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #161d33;
+  --ai-inner: linear-gradient(135deg, rgba(31, 182, 255, 0.07), rgba(155, 47, 248, 0.07)), #151c33;
 }
 
 html, body { height: 100%; }
 
 body {
   background: var(--bg);
+  background-image: var(--bg-image); /* 다크 전용 radial 그라데이션 (라이트는 none) */
+  background-attachment: fixed;
   color: var(--text);
   font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -922,3 +927,11 @@ dialog .actions .pill-secondary { color: var(--text); font-size: 15px; }
   .card { padding: 16px; }
   .filter-chips { margin-left: -12px; margin-right: -12px; padding-left: 12px; padding-right: 12px; } /* 음수 마진을 줄어든 패딩에 맞춤 */
 }
+
+/* Launch 스플래시 — 디자인 원본 Launch.dc.html의 키프레임 그대로 */
+@keyframes chDraw { to { stroke-dashoffset: 0; } }
+@keyframes chFadeOut { to { opacity: 0; } }
+@keyframes chFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes chUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes chPulse { 0%, 100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.1); } }
+@keyframes chFloat { from { transform: translateY(0); } to { transform: translateY(-14px); } }
