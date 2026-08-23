@@ -36,6 +36,17 @@ app/build.gradle의 twaManifest 맵 → resValue → Android 리소스
 | **매 빌드 재생성** | `res/xml/shortcuts.xml` | git diff에 떠도 무시 |
 | **update 시 재다운로드** | mipmap/drawable 아이콘·스플래시, raw/web_app_manifest.json | 원본은 웹의 icon-*.png — **웹에 먼저 배포 후 update** |
 
+**예외 1건 — 투명 스플래시 (2026-08-24)**: `drawable-*/splash.png` 5개는 의도적으로 **1×1 투명 PNG로 교체해 커밋**돼 있다.
+네이티브 정적 스플래시(로고 박힌 화면)와 웹 애니메이션 스플래시가 2중으로 보이는 문제의 해결 — 네이티브 단계는
+남색 배경만 보이고 로고는 웹에서 그려지는 애니메이션으로만 등장한다. `bubblewrap update`가 이 파일들을
+원본 아이콘으로 되돌리므로, **update 직후 반드시**:
+```
+git checkout -- charty-android/app/src/main/res/drawable-hdpi/splash.png charty-android/app/src/main/res/drawable-mdpi/splash.png charty-android/app/src/main/res/drawable-xhdpi/splash.png charty-android/app/src/main/res/drawable-xxhdpi/splash.png charty-android/app/src/main/res/drawable-xxxhdpi/splash.png
+```
+(git이 재적용 메커니즘 — update 후 diff에 splash.png가 뜨면 이 규칙을 잊은 것이다.)
+참고: Android 12+의 시스템 스플래시(런처 아이콘 잠깐 표시)는 OS 동작이라 남는다 — 거슬리면 `values-v31`
+테마 오버라이드로 아이콘을 투명화할 수 있으나 update 생존성이 불확실해 보류.
+
 실증 사례 (2026-08-24): gradle.properties의 힙 조정(1GB)이 update로 1536m 템플릿에 되돌아가 빌드가 재실패.
 근본 해결은 프로젝트 밖 — **64비트 JDK를 `~/.bubblewrap/jdk-x64/`에 두고 `~/.bubblewrap/config.json`의
 jdkPath 교체** (레포 밖이라 update 영향 없음). 이 원칙 일반화: *이 디렉토리 안에 지속 수정을 넣지 말 것.*
