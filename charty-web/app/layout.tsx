@@ -6,7 +6,7 @@ import '../src/index.css'
 export const metadata: Metadata = {
   title: '차티 — 모의투자 훈련',
   manifest: '/manifest.webmanifest',
-  icons: { icon: '/favicon.svg', apple: '/apple-touch-icon.png' },
+  icons: { icon: '/favicon.png', apple: '/apple-touch-icon.png' },
   appleWebApp: { capable: true },
 }
 
