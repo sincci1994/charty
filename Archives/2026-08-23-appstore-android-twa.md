@@ -47,9 +47,14 @@ charty-ruddy.vercel.app의 **PWA 설치본**이고, `charty-app/`(RN)은 1년 �
   assetlinks.json 배포·라이브 확인(200, application/json).
 - 서명 키: `charty-android/android.keystore`(gitignore) + 비밀번호 2개는 사용자만 보관. **분실 = 앱 업데이트 영구 불가.**
 
+## A3 실기기 검증 — 전부 통과 (2026-08-23 밤)
+
+`app-release-signed.apk` 실기기 설치: **① URL바 없음**(업로드 키 assetlinks 검증 성공),
+**② 기존 PWA 데이터 그대로 이어짐**(TWA=Chrome 본체 렌더링·동일 출처 localStorage 공유 — 가설이 실증됨),
+③ 새 아이콘 정상, ④ 세로 고정 정상. 기존 PWA 설치본은 데이터 확인 후 제거해도 무방.
+
 ## 남은 것
 
-- **A3**: 폰에 `app-release-signed.apk` 설치 — URL바 없음·새 아이콘·기존 PWA 데이터 이어짐·세로 고정 확인 (진행 중)
 - **A4** (Play 신원 인증 완료 후): 앱 생성 → AAB 비공개 테스트 업로드 → App integrity의 **Play 앱 서명 키 SHA-256을
   assetlinks 2번 지문으로 추가** (안 하면 스토어 설치본에 URL바) → 등록정보(피처 그래픽 1024×500·문구·데이터 안전
   설문은 Claude 초안, 스크린샷은 실기기) → 테스터 15명 모집, 12명+ 14일 옵트인 → 프로덕션 신청
