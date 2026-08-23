@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useNav } from '../lib/nav'
 import type { Timeframe, Unit } from '../types'
 import { MIN_BARS, TF, barsFor, estTime, loadMaxBars } from '../lib/data'
@@ -16,8 +16,8 @@ const TF_CHIPS: { label: string; tf?: Timeframe }[] = [
 
 export default function CustomStyle() {
   const nav = useNav()
-  // optional catch-all([[...id]]) 파라미터 — /custom은 undefined, /custom/:id는 ['id']
-  const id = useParams<{ id?: string[] }>().id?.[0]
+  // 쿼리 파라미터 — /custom은 신규, /custom?id=…는 편집 (동적 세그먼트는 정적 export 불가라 쿼리로)
+  const id = useSearchParams().get('id') ?? undefined
   const { customs, saveCustom, deleteCustom } = useStore()
   const editing = customs.find((c) => c.id === id)
 

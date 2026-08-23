@@ -1,8 +1,13 @@
 {
+  "id": "/",
   "name": "차티 — 모의투자 훈련",
   "short_name": "차티",
-  "start_url": "./",
+  "description": "과거 캔들 차트로 매매를 연습하는 모의투자 훈련 앱",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#1E1E1E",
   "theme_color": "#1E1E1E",
   "icons": [

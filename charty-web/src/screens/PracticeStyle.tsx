@@ -84,7 +84,7 @@ export default function PracticeStyle() {
                   </div>
                 </div>
                 <button
-                  onClick={(e) => { e.stopPropagation(); nav(`/practice/style/custom/${c.id}`) }}
+                  onClick={(e) => { e.stopPropagation(); nav(`/practice/style/custom?id=${c.id}`) }}
                   style={{ background: 'transparent', border: '1px solid var(--accent)', color: 'var(--accent)', borderRadius: 999, fontSize: 12, fontWeight: 600, padding: '5px 12px' }}
                 >
                   설정

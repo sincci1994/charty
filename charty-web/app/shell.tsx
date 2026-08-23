@@ -29,6 +29,11 @@ export default function Shell({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
+  // PWA/TWA — 오프라인 폴백·설치 요건용 최소 SW (public/sw.js). Capacitor(로컬 번들)에선 실패해도 무방
+  useEffect(() => {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
+  }, [])
+
   // ponytail: 구 HashRouter URL(/#/sim) 리다이렉트 — 몇 달 뒤 삭제
   useEffect(() => {
     if (window.location.hash.startsWith('#/')) router.replace(window.location.hash.slice(1))
