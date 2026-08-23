@@ -19,7 +19,8 @@ const TABS = [
 ]
 
 export default function Shell({ children }: { children: ReactNode }) {
-  const pathname = usePathname()
+  // 정적 export(trailingSlash)에선 pathname이 '/welcome/'처럼 옴 — 끝 슬래시 제거해 정확일치 유지
+  const pathname = usePathname().replace(/(.)\/$/, '$1')
   const router = useRouter()
   // 시뮬/회고는 자체 하단 바 사용, 웰컴은 풀스크린 — 탭바 숨김
   const onSim = ['/sim', '/review', '/welcome'].includes(pathname)

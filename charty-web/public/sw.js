@@ -35,7 +35,10 @@ self.addEventListener('fetch', (e) => {
         return r
       } catch {
         // 오프라인 — 같은 URL의 마지막 응답, 내비게이션은 최후에 홈 셸이라도
-        return (await c.match(req)) ?? (req.mode === 'navigate' && (await c.match('/'))) || Response.error()
+        const cached = await c.match(req)
+        if (cached) return cached
+        const home = req.mode === 'navigate' ? await c.match('/') : undefined
+        return home || Response.error()
       }
     }))
   }
