@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useStore } from '../src/store'
 import Splash from '../src/components/Splash'
-import { START_BALANCE } from '../src/lib/data'
 import { supabase } from '../src/lib/supabase'
 import { applyServer, initStateSync, pickState, pullState, pushState, syncRecords } from '../src/lib/sync'
 
@@ -77,46 +76,52 @@ export default function Shell({ children }: { children: ReactNode }) {
     if (!supabase) return
     initStateSync() // 변이 감지 → 디바운스 push 구독 (1회)
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') localStorage.removeItem('charty:profile') // 프로필 미러 무효화 — 로그아웃 후 닉네임 잔존 방지
+      // 이 이벤트는 세션 만료·리프레시 실패로도 온다(auth-js가 _removeSession에서 발화). 그 경로엔
+      // 사용자 확인도 플러시도 없고, 하필 오프라인이라 로컬이 유일본일 확률이 높다 — 그래서 여기선 안 지운다.
+      // 자발적 로그아웃의 와이프·이동은 More의 로그아웃 버튼이 직접 한다 (동의를 받은 자리에서)
+      if (event === 'SIGNED_OUT') localStorage.removeItem('charty:profile') // 프로필 미러 — 닉네임 잔존 방지
       if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
       setTimeout(async () => {
         if (wiping) return
         // 계정 전환 가드 — 이전 계정의 로컬 잔여 데이터가 새 계정 user_id로 push되기 전에 와이프.
-        // 로그아웃 시엔 안 지움(로그아웃 로컬 사용은 의도된 기능), 같은 계정 재로그인은 기존처럼 병합
+        // 정상 로그아웃은 charty:uid를 지우므로 여기 안 걸린다(게스트 데이터는 그대로 이어받음).
+        // 세션이 SIGNED_OUT 없이 사라진 경우의 보험으로 남긴다. 같은 계정 재로그인은 기존처럼 병합
         if (session) {
           const prev = localStorage.getItem('charty:uid')
           if (prev && prev !== session.user.id) {
             wiping = true
             // reload의 내비게이션 커밋 전에 도착하는 늦은 set()이 persist를 재기록해도
             // 초기 상태만 남도록 스토어부터 리셋 (applyServer — 구독자의 스탬프·푸시 차단)
-            applyServer(() => useStore.setState({
-              balance: START_BALANCE, activeSim: null, records: [], customs: [], candles: [],
-              waitlistAt: null, welcomed: false, stateUpdatedAt: 0,
-            }))
-            localStorage.removeItem('charty')
+            applyServer(() => useStore.getState().wipeLocal())
             localStorage.setItem('charty:uid', session.user.id)
             location.reload()
             return
           }
           localStorage.setItem('charty:uid', session.user.id)
         }
+        // await 재개마다 신원 재확인 — 대사 왕복 중에 로그아웃이 끼면 syncRecords의 merged가
+        // (항상 로컬 스냅샷을 포함하므로) 방금 지운 계정 기록을 스토어·persist에 되살린다
+        const uid = session?.user.id ?? null
+        const stale = () => localStorage.getItem('charty:uid') !== uid
         const merged = await syncRecords(useStore.getState().records)
+        if (stale()) return
         if (merged) applyServer(() => useStore.getState().applySync(merged))
         if (!session) return
         const pulled = await pullState()
+        if (stale()) return
         useStore.getState().setSyncError(pulled === 'error')
         if (pulled === 'error') return
         const local = useStore.getState()
         if (pulled && pulled.updatedAt > local.stateUpdatedAt) {
           applyServer(() => local.applyState(pulled.data, pulled.updatedAt)) // 서버가 더 새로움 — LWW 반영
         } else if (pulled && pulled.updatedAt < local.stateUpdatedAt) {
-          void pushState(pickState(local), local.stateUpdatedAt) // 로그아웃·오프라인 중 변이 재푸시
+          void pushState(pickState(local), local.stateUpdatedAt) // 오프라인·게스트 중 변이 재푸시
         } else if (!pulled) {
           // 행 없음 — 기기 고유 상태(진행 세션·커스텀·게이트)가 있을 때만 시드.
           // balance는 records에서 파생 가능해 정보가 아님: 파생값만으로 행을 만들면
           // 새 기기의 빈 시드가 다른 기기의 실데이터(스탬프 0인 pre-R13 로컬)를 이겨버린다
           const slice = pickState(local)
-          if (slice.activeSim || slice.customs.length > 0 || slice.welcomed || slice.waitlistAt != null)
+          if (slice.activeSim || slice.customs.length > 0 || slice.waitlistAt != null)
             void pushState(slice, local.stateUpdatedAt || Date.now())
         }
       }, 0)

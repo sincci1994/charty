@@ -28,8 +28,11 @@ export async function syncRecords(local: SimRecord[]): Promise<SimRecord[] | nul
     if (error) { console.warn('[sync]', error); return null }
     const server = (data as { data: SimRecord }[]).map((r) => r.data)
     const { merged, toPush } = reconcile(local, server)
-    if (toPush.length)
-      await supabase.from('records').upsert(toPush.map((r) => row(userId, r)), { onConflict: 'id', ignoreDuplicates: true })
+    if (toPush.length) {
+      // 에러를 안 보면 push 실패에도 merged를 돌려주게 된다 — 로그아웃 플러시가 그 반환값을 믿고 로컬을 지운다
+      const { error: pushErr } = await supabase.from('records').upsert(toPush.map((r) => row(userId, r)), { onConflict: 'id', ignoreDuplicates: true })
+      if (pushErr) { console.warn('[sync]', pushErr); return null }
+    }
     return merged
   } catch (e) {
     console.warn('[sync]', e)
@@ -63,25 +66,32 @@ export async function clearRemote(): Promise<void> {
 // updated_at은 클라이언트 변이 시각. 한 사람이 두 기기에서 동시에 자산을 굴릴 수 없으므로
 // ponytail: LWW로 충분 — 더 새로운 서버 state가 진행 중 로컬 세션을 밀어내는 건 의도된 동작, 머지 로직 없음
 
+// welcomed는 동기화하지 않는다 — 기기 로컬 게이트다(theme·coach와 같은 부류).
+// 슬라이스에 넣으면 로그아웃 와이프 직후 /welcome 버튼 한 번이 '내용은 빈' 슬라이스에 최신 스탬프를 찍어
+// 재로그인 때 서버의 진짜 customs·activeSim을 이겨버린다. 다른 기기 중복 노출은 게이트의
+// records.length === 0 조건과 Welcome의 세션 리다이렉트가 이미 막는다
 export interface SyncedState {
   balance: number
   activeSim: ActiveSim | null
   customs: CustomStyle[]
-  welcomed: boolean
   waitlistAt: number | null
 }
 
 export const pickState = (s: SyncedState): SyncedState =>
-  ({ balance: s.balance, activeSim: s.activeSim, customs: s.customs, welcomed: s.welcomed, waitlistAt: s.waitlistAt })
+  ({ balance: s.balance, activeSim: s.activeSim, customs: s.customs, waitlistAt: s.waitlistAt })
 
-export async function pushState(data: SyncedState, updatedAt: number): Promise<void> {
-  if (!supabase) return
+// false = 미로그인/실패. customs·activeSim은 records에서 파생 불가라 state 행이 유일본 —
+// 로그아웃처럼 '올린 뒤 지우는' 호출부는 이 반환값을 반드시 확인해야 한다
+export async function pushState(data: SyncedState, updatedAt: number): Promise<boolean> {
+  if (!supabase) return false
   try {
     const { data: s } = await supabase.auth.getSession()
-    if (!s.session) return
-    await supabase.from('state')
+    if (!s.session) return false
+    const { error } = await supabase.from('state')
       .upsert({ user_id: s.session.user.id, data, updated_at: new Date(updatedAt).toISOString() })
-  } catch (e) { console.warn('[sync]', e) /* 실패해도 로컬이 newer로 남아 다음 변이·로그인 때 재푸시 */ }
+    if (error) { console.warn('[sync]', error); return false }
+    return true
+  } catch (e) { console.warn('[sync]', e); return false /* 로컬이 newer로 남아 다음 변이·로그인 때 재푸시 */ }
 }
 
 // null = 행 없음(첫 로그인 — 호출부가 시드 push), 'error' = 실패(호출부가 syncError 표시)
@@ -110,6 +120,13 @@ let applying = false
 export function applyServer(fn: () => void): void {
   applying = true
   try { fn() } finally { applying = false }
+}
+
+// 와이프 직후 남은 예약 push 취소. applyServer는 '새 예약'만 막고 이미 무장된 타이머는 못 막는다 —
+// pushState의 getSession 재확인이 보통 막아주지만, 로그아웃 후 2초 안에 다시 로그인하면 그 방어가 뚫린다
+export function cancelPush(): void {
+  clearTimeout(timer)
+  timer = undefined
 }
 
 export function initStateSync(): void {

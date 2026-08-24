@@ -4,7 +4,7 @@ import type { ActiveSim, Candle, CustomStyle, Side, SimRecord, Style } from './t
 import { EMA_WARMUP, LOOKBACK, SETS, START_BALANCE, STYLES, barsFor, loadCandleCounts, loadCandles, loadTickers, pickRange } from './lib/data'
 import type { SetKey } from './lib/data'
 import { fillOrders, forceCloseAll, validateOrder } from './lib/engine'
-import { clearRemote, pushRecord } from './lib/sync'
+import { cancelPush, clearRemote, pushRecord } from './lib/sync'
 import type { SyncedState } from './lib/sync'
 
 // R5 주문 판단 기록 — reasons 필수(UI에서 강제), sl/tp 선택, ms=시트 열림→제출 소요시간(R6)
@@ -48,6 +48,7 @@ interface State {
   applySync: (records: SimRecord[]) => void
   applyState: (data: SyncedState, updatedAt: number) => void
   setSyncError: (v: boolean) => void
+  wipeLocal: () => void
   resetAll: () => void
 }
 
@@ -241,6 +242,17 @@ export const useStore = create<State>()(
       applyState: (data, updatedAt) =>
         set({ ...data, stateUpdatedAt: updatedAt, ...(data.activeSim?.id !== get().activeSim?.id ? { candles: [] } : {}) }),
       setSyncError: (syncError) => set({ syncError }),
+
+      // 로그아웃·계정 전환 — 이 기기의 '계정 데이터'만 비운다. 서버는 안 건드림(재로그인 때 복구된다).
+      // theme·coach는 기기 로컬 설정이라 유지 — 로그아웃했다고 다크모드가 풀리면 그건 버그다.
+      // persist는 set()마다 동기 기록이라 localStorage 'charty'가 이 set() 직후 리셋 블롭으로 덮인다 (removeItem 불필요)
+      wipeLocal: () => {
+        cancelPush() // 예약된 디바운스 push 취소 — 빈 슬라이스가 올라가면 customs·activeSim은 state 행이 유일본이라 소실
+        set({
+          balance: START_BALANCE, activeSim: null, records: [], customs: [], candles: [],
+          waitlistAt: null, welcomed: false, stateUpdatedAt: 0, syncError: false,
+        })
+      },
 
       resetAll: () => {
         void clearRemote() // R11 — 서버 기록도 삭제 (안 지우면 다음 로그인 때 부활)

@@ -3,7 +3,9 @@ import { useNav } from '../lib/nav'
 import { useStore } from '../store'
 import { supabase, useSession } from '../lib/supabase'
 import { cachedProfile, loadProfile } from '../lib/profile'
+import { applyServer, pickState, pullState, pushState, syncRecords } from '../lib/sync'
 import AuthButtons from '../components/AuthButtons'
+import { SKIP_SPLASH } from './Welcome'
 import type { Profile } from '../types'
 
 export default function More() {
@@ -11,6 +13,8 @@ export default function More() {
   const { theme, setTheme, coach, setCoach, resetAll, syncError } = useStore()
   const session = useSession()
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const logoutRef = useRef<HTMLDialogElement>(null)
+  const [logout, setLogout] = useState<'' | 'busy' | 'fail'>('')
   // undefined = 로딩/미로그인, null = 프로필 미작성 (온보딩 CTA 강조용). 초기값은 로컬 미러(SWR — Home과 동일)
   const [profile, setProfile] = useState<Profile | null | undefined>(cachedProfile() ?? undefined)
   useEffect(() => {
@@ -20,6 +24,29 @@ export default function More() {
     return () => { live = false }
   }, [session])
 
+  // 자발적 로그아웃만 이 기기의 계정 데이터를 지운다(세션 만료는 shell에서 안 지움 — 로컬이 유일본일 수 있다).
+  // 지우기 전에 미동기화분을 서버로 밀어넣고, 둘 중 하나라도 실패하면 중단한다.
+  // records는 '서버에 있으니 지워도 된다'의 근거이고, customs·activeSim은 state 행에만 있는 유일본이다
+  const doLogout = async (force = false) => {
+    setLogout('busy')
+    if (!force) {
+      const s = useStore.getState()
+      if (!(await syncRecords(s.records))) return setLogout('fail')
+      // state는 유저당 1행 LWW — 서버가 이미 같거나 더 새로우면 밀지 않는다.
+      // 로그아웃은 변이가 없어도 push를 만들므로, 안 막으면 오래된 탭이 다른 기기의 최신 customs를 되돌린다
+      const pulled = await pullState()
+      if (pulled === 'error') return setLogout('fail')
+      if (!(pulled && pulled.updatedAt >= s.stateUpdatedAt)
+        && !(await pushState(pickState(s), s.stateUpdatedAt))) return setLogout('fail') // 2초 디바운스 대기분 포함
+    }
+    await supabase?.auth.signOut({ scope: 'local' }) // 이 기기만 — 기본값 global은 다른 기기 세션까지 끊는다
+    applyServer(() => useStore.getState().wipeLocal()) // 구독자가 사용자 변이로 오인해 재푸시하는 것 차단
+    localStorage.removeItem('charty:uid') // 남기면 이후 게스트 데이터가 계정 전환 가드에 지워진다
+    localStorage.removeItem('charty:profile')
+    try { sessionStorage.setItem(SKIP_SPLASH, '1') } catch { /* 저장소 불가 — 스플래시가 한 번 더 보일 뿐 */ }
+    nav('/welcome', { replace: true })
+  }
+
   const dark = (theme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark'
 
   return (
@@ -28,7 +55,7 @@ export default function More() {
 
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.374px' }}>차티</span>
+          <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.374px' }}>차티</span>
           <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: 'linear-gradient(135deg, #1fb6ff, #3d5cff)', borderRadius: 999, padding: '3px 9px' }}>베타</span>
         </div>
         <div className="dim" style={{ fontSize: 14, lineHeight: 1.55 }}>
@@ -53,7 +80,7 @@ export default function More() {
                       {profile?.nickname && session.user.email ? ` · ${session.user.email}` : ' 계정'} · {syncError ? '동기화 실패 — 새로고침 시 재시도' : '기록 자동 저장'}
                     </div>
                   </div>
-                  <button className="pill pill-secondary" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => supabase?.auth.signOut()}>
+                  <button className="pill pill-secondary" style={{ padding: '9px 14px', fontSize: 13 }} onClick={() => { setLogout(''); logoutRef.current?.showModal() }}>
                     로그아웃
                   </button>
                 </div>
@@ -127,10 +154,26 @@ export default function More() {
 
       <div className="section-label">데이터 관리</div>
       <button className="card center" style={{ padding: '15px 16px' }} onClick={() => dialogRef.current?.showModal()}>
-        <span style={{ fontSize: 15, fontWeight: 500, letterSpacing: '-0.2px', color: 'var(--danger)' }}>전체 데이터 초기화</span>
+        <span style={{ fontSize: 14, fontWeight: 500, letterSpacing: '-0.2px', color: 'var(--danger)' }}>전체 데이터 초기화</span>
       </button>
 
       <div className="dim center" style={{ fontSize: 12, marginTop: 16 }}>차티 v0.1.0</div>
+
+      <dialog ref={logoutRef}>
+        <h3>로그아웃할까요?</h3>
+        <p>이 기기의 연습 기록과 자산이 지워집니다. 기록은 계정에 저장돼 다시 로그인하면 이어져요.</p>
+        {logout === 'fail' && <p style={{ color: 'var(--danger)' }}>지금은 기록을 서버에 저장할 수 없어요. 연결을 확인해 주세요.</p>}
+        <div className="actions">
+          <button className="pill pill-secondary" disabled={logout === 'busy'} onClick={() => logoutRef.current?.close()}>취소</button>
+          {logout === 'fail' ? (
+            <button className="pill pill-danger" onClick={() => doLogout(true)}>그래도 로그아웃</button>
+          ) : (
+            <button className="pill pill-danger" disabled={logout === 'busy'} onClick={() => doLogout()}>
+              {logout === 'busy' ? '저장 중…' : '로그아웃'}
+            </button>
+          )}
+        </div>
+      </dialog>
 
       <dialog ref={dialogRef}>
         <h3>모든 기록과 자산을 초기화할까요?</h3>
