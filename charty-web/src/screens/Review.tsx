@@ -32,7 +32,7 @@ export default function Review() {
         </div>
         <div className="dim num" style={{ fontSize: 12 }}>{report.resultLine}</div>
 
-        <div style={{ fontSize: 15, fontWeight: 700, marginTop: 8 }}>이번 세션에서 관찰된 행동</div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginTop: 8 }}>이번 세션에서 관찰된 행동</div>
         {report.observations.map((ob) => (
           <div key={ob.text} className="card obs-card">
             <span className="obs-glyph">{ob.glyph}</span>
@@ -58,7 +58,7 @@ export default function Review() {
         )}
 
         <div className="cta-card">
-          <div style={{ fontSize: 15, fontWeight: 700 }}>이런 리포트를 매 세션 받아보세요</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>이런 리포트를 매 세션 받아보세요</div>
           <div className="dim" style={{ fontSize: 12, lineHeight: 1.5 }}>누적 행동 분석과 맞춤 훈련 추천을 준비하고 있어요</div>
           {/* 가격 표시 제거(2026-08-15) — 유료화 신호는 아직 노출하지 않기로. 지불의사 측정은 신청 클릭(waitlistAt)만으로 */}
           <div className="dim" style={{ fontSize: 11 }}>출시 예정</div>
@@ -96,7 +96,7 @@ export default function Review() {
 
       <div className="card center">
         <div className="dim small" style={{ fontSize: 13 }}>{sim.symbol} 연습 결과 · {styleLabel(sim.style, sim.styleLabel)}</div>
-        <div className={`num ${pnl >= 0 ? 'green' : 'red'}`} style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.5px' }}>
+        <div className={`num ${pnl >= 0 ? 'green' : 'red'}`} style={{ fontSize: 29, fontWeight: 700, letterSpacing: '-0.5px' }}>
           {pnl >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%
         </div>
         <div className="dim num" style={{ fontSize: 13 }}>
@@ -104,7 +104,7 @@ export default function Review() {
         </div>
       </div>
 
-      <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.2px', margin: '14px 0 0' }}>
+      <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.2px', margin: '14px 0 0' }}>
         이 거래를 진행하면서 어떤 기분이 들었나요?
       </div>
       <div className="emotion-grid">
@@ -116,13 +116,13 @@ export default function Review() {
               className={emotion === key ? 'emotion selected' : 'emotion'}
               onClick={() => setEmotion(emotion === key ? '' : key)}
             >
-              <span style={{ fontSize: 16 }}>{icon}</span>{label}
+              <span style={{ fontSize: 15 }}>{icon}</span>{label}
             </button>
           )
         })}
       </div>
 
-      <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.2px', margin: '14px 0 0' }}>
+      <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.2px', margin: '14px 0 0' }}>
         매매 기록을 작성해주세요
       </div>
       <textarea

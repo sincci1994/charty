@@ -43,7 +43,7 @@ export default function PracticeStyle() {
         <button className="back-btn" onClick={() => (step === 2 ? setStep(1) : nav('/practice'))} aria-label="뒤로">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6 L9 12 L15 18" /></svg>
         </button>
-        <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.374px' }}>{step === 1 ? '트레이딩 스타일 선택' : '종목 세트 선택'}</div>
+        <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.374px' }}>{step === 1 ? '트레이딩 스타일 선택' : '종목 세트 선택'}</div>
         <span className="dim num" style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 600 }}>{step}/2</span>
       </header>
 
@@ -58,7 +58,7 @@ export default function PracticeStyle() {
             {(Object.keys(STYLES) as Style[]).map((key) => (
               <button key={key} className={`style-card${sel === key ? ' selected' : ''}`} disabled={loading} onClick={() => setSel(key)}>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.2px' }}>{STYLES[key].label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.2px' }}>{STYLES[key].label}</div>
                   <div className="dim" style={{ fontSize: 13, marginTop: 3 }}>
                     거래 기간 {STYLES[key].period} · 차트 간격 {TF[STYLES[key].tf].label} · {estTime(STYLES[key].bars)} 소요
                   </div>
@@ -78,7 +78,7 @@ export default function PracticeStyle() {
               // div — 설정 pill이 안에 있어 button 중첩 불가
               <div key={c.id} className={`style-card${sel === c.id ? ' selected' : ''}`} style={{ cursor: 'pointer' }} onClick={() => !loading && setSel(c.id)}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.2px' }}>{c.name}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.2px' }}>{c.name}</div>
                   <div className="dim" style={{ fontSize: 13, marginTop: 3 }}>
                     거래 기간 {c.periodValue}{c.periodUnit} · 차트 간격 {TF[c.tf].label} · {estTime(barsFor(c))} 소요
                   </div>
@@ -116,7 +116,7 @@ export default function PracticeStyle() {
               <button key={k} className={`style-card${setKey === k ? ' selected' : ''}`} disabled={loading} onClick={() => setSetKey(k)}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.2px' }}>{SETS[k].label}</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.2px' }}>{SETS[k].label}</span>
                     {SETS[k].vol && (
                       <span style={{
                         fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 8px',

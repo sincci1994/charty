@@ -208,7 +208,7 @@ export default function NewsPanel({ econ, nowTs, headlines }: { econ: EconIndica
     return [{ name, val: fmt(last(arr)), chg: (chg >= 0 ? '+' : '') + chg.toFixed(1) + '%', color, ...L }]
   })
 
-  const bigVal: React.CSSProperties = { fontSize: 18, fontWeight: 700 }
+  const bigVal: React.CSSProperties = { fontSize: 17, fontWeight: 700 }
 
   return (
     <div className="num" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

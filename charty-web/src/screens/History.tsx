@@ -25,7 +25,7 @@ export default function History() {
             </svg>
           </div>
           <div className="center">
-            <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.2px' }}>아직 완료한 연습이 없어요.</div>
+            <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.2px' }}>아직 완료한 연습이 없어요.</div>
             <div className="dim" style={{ fontSize: 14, marginTop: 8, lineHeight: 1.5 }}>연습 탭에서 첫 시뮬레이션을<br />시작해보세요!</div>
           </div>
           <button className="pill pill-primary" onClick={() => nav('/practice')}>연습하러 가기</button>
@@ -59,7 +59,7 @@ export default function History() {
 
       <div className="card" style={{ gap: 4, paddingBottom: 14 }}>
         <div className="dim" style={{ fontSize: 13 }}>현재 총 자산</div>
-        <div className="num" style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.374px' }}>{fmtW(balance)}</div>
+        <div className="num" style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.374px' }}>{fmtW(balance)}</div>
         <AssetChart values={series} startLabel={new Date(asc[0].endedAt).toLocaleDateString()} />
         <div className="dim num" style={{ fontSize: 12, marginTop: 4 }}>
           총 {records.length}회 연습 · 승률 {winRate}% · 평균 {avgPct >= 0 ? '+' : ''}{avgPct.toFixed(1)}%
@@ -93,11 +93,11 @@ export default function History() {
               <button key={r.id} className={`card rec${open ? ' open' : ''}`} onClick={() => setOpenId(open ? null : r.id)}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.2px' }}>{r.symbol}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.2px' }}>{r.symbol}</div>
                     <div className="dim" style={{ fontSize: 12, marginTop: 3 }}>{label(r)}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <div className={`num ${up ? 'green' : 'red'}`} style={{ fontSize: 16, fontWeight: 600 }}>
+                    <div className={`num ${up ? 'green' : 'red'}`} style={{ fontSize: 15, fontWeight: 600 }}>
                       {up ? '+' : ''}{r.pnlPct.toFixed(1)}%
                     </div>
                     <svg className="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

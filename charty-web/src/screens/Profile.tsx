@@ -104,7 +104,7 @@ export default function Profile() {
         maxLength={20}
         placeholder="닉네임을 입력하세요"
         onChange={(e) => setNickname(e.target.value)}
-        style={{ height: 48, borderRadius: 12, border: '1px solid var(--hairline)', background: 'var(--card)', fontSize: 15, padding: '0 16px' }}
+        style={{ height: 48, borderRadius: 12, border: '1px solid var(--hairline)', background: 'var(--card)', fontSize: 14, padding: '0 16px' }}
       />
 
       <Label text="연령대" optional />

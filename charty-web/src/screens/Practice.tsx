@@ -16,8 +16,8 @@ export default function Practice() {
   return (
     <div className="page">
       <header style={{ padding: '4px 0 10px' }}>
-        <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.374px' }}>연습 모드 선택</div>
-        <div className="sub" style={{ fontSize: 15, marginTop: 6 }}>원하는 연습 방식으로 시작해보세요!</div>
+        <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.374px' }}>연습 모드 선택</div>
+        <div className="sub" style={{ fontSize: 14, marginTop: 6 }}>원하는 연습 방식으로 시작해보세요!</div>
       </header>
 
       {activeSim && (
@@ -45,7 +45,7 @@ export default function Practice() {
       {/* Simulation Mode — 그라데이션 보더 강조 카드 (세션 중엔 디밍) */}
       <div style={{ borderRadius: 20, padding: 1.5, background: 'var(--grad)', opacity: activeSim ? 0.55 : 1 }}>
         <div className="card" style={{ border: 'none', borderRadius: 18.5, padding: '22px 20px', gap: 0 }}>
-          <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.3px' }}>시뮬레이션 모드</div>
+          <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.3px' }}>시뮬레이션 모드</div>
           <div className="sub" style={{ fontSize: 13, marginTop: 2 }}>실제 차트를 보고 매매 연습</div>
           <div className="sub" style={{ fontSize: 13, lineHeight: 1.55, marginTop: 14, letterSpacing: '-0.1px' }}>
             캔들을 하나씩 직접 생성하며 흐름을 예측하고 매매 판단을 훈련합니다.
@@ -72,7 +72,7 @@ export default function Practice() {
       {/* Speed Quiz — 준비중 (디밍) */}
       <div className="card" style={{ borderRadius: 20, padding: '22px 20px', gap: 0, opacity: 0.55 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.3px' }}>스피드 퀴즈</div>
+          <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.3px' }}>스피드 퀴즈</div>
           <span className="sub" style={{ fontSize: 11, fontWeight: 600, background: 'var(--card2)', borderRadius: 999, padding: '3px 9px' }}>준비중</span>
         </div>
         <div className="sub" style={{ fontSize: 13, marginTop: 2 }}>빠른 판단 훈련용 퀴즈</div>

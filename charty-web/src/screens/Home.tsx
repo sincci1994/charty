@@ -166,15 +166,15 @@ export default function Home() {
   return (
     <div className="page">
       <header style={{ padding: '4px 0 8px' }}>
-        <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.374px' }}>안녕하세요{nickname ? `, ${nickname}님` : ''}! 👋</div>
-        <div className="sub" style={{ fontSize: 15, marginTop: 6 }}>
+        <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.374px' }}>안녕하세요{nickname ? `, ${nickname}님` : ''}! 👋</div>
+        <div className="sub" style={{ fontSize: 14, marginTop: 6 }}>
           {streakDays > 0 ? `${streakDays}일 연속 연습 중! 대단해요!` : '오늘 첫 연습을 시작해보세요!'}
         </div>
       </header>
 
       <section className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 'min-content', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="sub" style={{ fontSize: 13 }}>총 자산</span>
               <button
@@ -187,8 +187,9 @@ export default function Home() {
                 </svg>
               </button>
             </div>
-            {/* 320px대에서 92px 아바타와 안 겹치게 금액 폰트를 뷰포트에 맞춰 축소 (통화 문자열은 줄바꿈 불가) */}
-            <div className="num" style={{ fontSize: 'clamp(20px, 7.5vw, 28px)', fontWeight: 600, letterSpacing: '-0.374px' }}>
+            {/* 통화 문자열은 줄바꿈이 안 되므로 뷰포트에 맞춰 축소. 단 이 clamp 위에 안드로이드 텍스트 배율이
+                다시 곱해질 수 있어 이것만으로는 부족하다 — 열의 min-width가 min-content라 그때는 아바타가 줄어든다 */}
+            <div className="num" style={{ fontSize: 'clamp(18px, 7vw, 26px)', fontWeight: 600, letterSpacing: '-0.374px' }}>
               {hideAsset ? '₩ ******' : fmtW(totalAsset)}
             </div>
             {!hideAsset && (
@@ -207,7 +208,7 @@ export default function Home() {
               const fallback = avatarSrc(totalAsset, simSec, profile?.ageBand)
               if (!e.currentTarget.src.endsWith(fallback)) e.currentTarget.src = fallback
             }}
-            alt="내 캐릭터" width={92} height={92} style={{ flexShrink: 0, borderRadius: 14, objectFit: 'cover', width: 'min(92px, 24vw)', height: 'auto', aspectRatio: '1' }} />
+            alt="내 캐릭터" width={92} height={92} style={{ flexShrink: 1, minWidth: 40, borderRadius: 14, objectFit: 'cover', width: 'min(92px, 24vw)', height: 'auto', aspectRatio: '1' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
           <Clock />
@@ -220,7 +221,7 @@ export default function Home() {
       {activeSim ? (
         <section className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.2px' }}>현재 {activeSim.styleLabel ?? '연습'} 진행 중</div>
+            <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.2px' }}>현재 {activeSim.styleLabel ?? '연습'} 진행 중</div>
             <div className="num" style={{ fontSize: 14, fontWeight: 600 }}>{progress}%</div>
           </div>
           <div className="track">
@@ -235,7 +236,7 @@ export default function Home() {
         <button className="pill pill-primary pill-full" onClick={() => nav('/practice')}>연습하러 가기</button>
       )}
 
-      <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>성과 요약</h2>
+      <h2 style={{ fontSize: 16, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>성과 요약</h2>
       <div className="stats">
         <div className={`stat ${profitTint}`}>
           <b>{profitRate === null ? '-' : `${sign(profitRate)}${Math.abs(profitRate).toFixed(1)}%`}</b>
@@ -280,7 +281,7 @@ export default function Home() {
         )}
       </section>
 
-      <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>매매 스타일 조언</h2>
+      <h2 style={{ fontSize: 16, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>매매 스타일 조언</h2>
       {/* R14 — R7 행동 리포트의 해금된 지표를 요약 rows로 재활용, 탭하면 전체 리포트로 */}
       <button className="card" onClick={() => nav('/report')} style={{ textAlign: 'left', font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -323,7 +324,7 @@ export default function Home() {
       {market && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 -2px' }}>
-            <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: 0 }}>시장 현황</h2>
+            <h2 style={{ fontSize: 16, letterSpacing: '-0.374px', margin: 0 }}>시장 현황</h2>
             <div className="seg">
               {(['kr', 'us'] as const).map((r) => (
                 <button key={r} className={region === r ? 'active' : ''} onClick={() => setRegion(r)}>
@@ -345,7 +346,7 @@ export default function Home() {
                 <div key={g.name} style={{ border: '1px solid var(--hairline)', borderRadius: 12, padding: '10px 12px' }}>
                   <div className="dim" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{g.name}</div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginTop: 3 }}>
-                    <span className="num" style={{ fontSize: 16, fontWeight: 700 }}>{g.val}</span>
+                    <span className="num" style={{ fontSize: 15, fontWeight: 700 }}>{g.val}</span>
                     <span style={{ fontSize: 10, fontWeight: 700, color: g.zone.c, background: g.zone.bg, borderRadius: 999, padding: '3px 8px' }}>{g.zone.z}</span>
                   </div>
                   <div style={{ marginTop: 9, position: 'relative', height: 7, borderRadius: 4, background: g.track, opacity: 0.9 }}>
@@ -367,7 +368,7 @@ export default function Home() {
 
       {news && news[region].length > 0 && (
         <>
-          <h2 style={{ fontSize: 17, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>주요 뉴스</h2>
+          <h2 style={{ fontSize: 16, letterSpacing: '-0.374px', margin: '14px 0 -2px' }}>주요 뉴스</h2>
           <section className="card" style={{ padding: '4px 16px', gap: 0 }}>
             {news[region].slice(0, newsMore ? undefined : 4).map((nw, i, arr) => (
               <a

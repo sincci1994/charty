@@ -53,7 +53,7 @@ export default function FundPanel({ quarters, nowTs, price, econ }: { quarters?:
             <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>분기 실적 <span className="dim" style={{ fontWeight: 400, fontSize: 11 }}>공시 기준</span></div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>
               <span className="dim" style={{ fontSize: 10, fontWeight: 600 }}>PER </span>
               {view.per != null ? `${view.per.toFixed(1)}배` : 'N/A'}
             </div>

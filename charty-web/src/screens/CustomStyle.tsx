@@ -69,7 +69,7 @@ export default function CustomStyle() {
         <button className="back-btn" onClick={() => nav('/practice/style')} aria-label="뒤로">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6 L9 12 L15 18" /></svg>
         </button>
-        <div style={{ flex: 1, fontSize: 20, fontWeight: 600, letterSpacing: '-0.374px' }}>커스텀 트레이딩 스타일</div>
+        <div style={{ flex: 1, fontSize: 18, fontWeight: 600, letterSpacing: '-0.374px' }}>커스텀 트레이딩 스타일</div>
         {editing && (
           <button onClick={del} style={{ background: 'transparent', color: 'var(--danger)', fontWeight: 600, padding: '6px 4px' }}>
             삭제
@@ -84,7 +84,7 @@ export default function CustomStyle() {
         placeholder="이름을 입력하세요"
         maxLength={20}
         onChange={(e) => setName(e.target.value)}
-        style={{ height: 48, borderRadius: 12, border: '1px solid var(--hairline)', background: 'var(--card)', fontSize: 15, padding: '0 16px' }}
+        style={{ height: 48, borderRadius: 12, border: '1px solid var(--hairline)', background: 'var(--card)', fontSize: 14, padding: '0 16px' }}
       />
 
       <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '-0.2px', marginTop: 10 }}>연습 기간</div>
@@ -99,7 +99,7 @@ export default function CustomStyle() {
             placeholder="0"
             onChange={(e) => setPeriodStr(e.target.value)}
             style={{
-              flex: 1, minWidth: 0, height: 48, borderRadius: 12, textAlign: 'center', fontSize: 20, fontWeight: 600,
+              flex: 1, minWidth: 0, height: 48, borderRadius: 12, textAlign: 'center', fontSize: 18, fontWeight: 600,
               background: 'var(--bg)', fontVariantNumeric: 'tabular-nums', padding: '0 12px',
               border: over ? '1.5px solid var(--red)' : '1.5px solid transparent',
             }}
@@ -145,7 +145,7 @@ export default function CustomStyle() {
               <div className="dim" style={{ fontSize: 13 }}>예상 소요시간</div>
               <div className="dim" style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>캔들 {bars.toLocaleString()}개</div>
             </div>
-            <span style={{ fontSize: 17, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: barsBad ? 'var(--danger)' : 'var(--accent)' }}>
+            <span style={{ fontSize: 16, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: barsBad ? 'var(--danger)' : 'var(--accent)' }}>
               {estTime(bars)}
             </span>
           </div>

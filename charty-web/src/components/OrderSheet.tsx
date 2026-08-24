@@ -105,7 +105,7 @@ export default function OrderSheet({ sim, currentPrice, candle, buy, onClose }: 
       <div className="sheet-handle" />
       <div className="sheet-head">
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontSize: 17, fontWeight: 700 }} className={buy ? 'green' : 'red'}>
+          <span style={{ fontSize: 16, fontWeight: 700 }} className={buy ? 'green' : 'red'}>
             {buy ? '매수' : '매도'}
           </span>
           <span className="dim" style={{ fontSize: 13 }}>지정가 주문</span>

@@ -109,7 +109,7 @@ body {
 }
 
 
-h2 { font-size: 22px; }
+h2 { font-size: 20px; }
 
 .dim { color: var(--dim); }
 .small { font-size: 12px; }
@@ -147,7 +147,7 @@ h2 { font-size: 22px; }
 }
 .tabbar a {
   flex: 1;
-  height: 50px;
+  min-height: 50px;
   border-radius: 999px;
   display: flex;
   flex-direction: column;
@@ -212,7 +212,7 @@ button:disabled { opacity: 0.5; }
 
 .back-btn {
   width: 34px;
-  height: 34px;
+  min-height: 34px;
   border-radius: 50%;
   background: transparent;
   border: 1px solid var(--hairline);
@@ -223,7 +223,7 @@ button:disabled { opacity: 0.5; }
   flex-shrink: 0;
 }
 
-.cta { height: 50px; font-size: 16px; font-weight: 600; }
+.cta { min-height: 50px; font-size: 15px; font-weight: 600; }
 .cta:disabled { opacity: 1; background: var(--card2); color: var(--dim); cursor: not-allowed; }
 
 /* 커스텀 스타일 편집 — 선택형 옵션 버튼(단위/타임프레임 칩) */
@@ -286,7 +286,7 @@ button:disabled { opacity: 0.5; }
 .ind-chips .chip { padding: 7px 11px; border: 1px solid var(--hairline); }
 .ind-chips .chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .next-btn {
-  height: 36px;
+  min-height: 36px;
   border-radius: 999px;
   border: 1.5px solid var(--accent);
   color: var(--accent);
@@ -337,7 +337,7 @@ button:disabled { opacity: 0.5; }
 .order-row { display: flex; align-items: center; gap: 8px; border: 1px solid var(--hairline); border-radius: 10px; padding: 9px 11px; }
 .cancel-btn {
   width: 22px;
-  height: 22px;
+  min-height: 22px;
   border-radius: 50%;
   background: transparent;
   color: var(--dim);
@@ -424,19 +424,19 @@ dialog.sheet {
 .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--hairline); margin: 0 auto 14px; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
 .seg { display: flex; border: 1px solid var(--hairline); border-radius: 999px; padding: 2px; gap: 2px; }
-.seg button { height: 26px; border-radius: 999px; padding: 0 13px; font-size: 12px; background: transparent; color: var(--dim); }
+.seg button { min-height: 26px; border-radius: 999px; padding: 0 13px; font-size: 12px; background: transparent; color: var(--dim); }
 .seg button.active { background: var(--accent); color: #fff; font-weight: 600; }
 .field-label { font-size: 12px; font-weight: 600; margin: 16px 0 7px; }
 .stepper { display: flex; gap: 8px; }
-.stepper > button { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--hairline); background: transparent; color: var(--text); font-size: 18px; padding: 0; flex-shrink: 0; }
-.stepper input { flex: 1; min-width: 0; height: 44px; text-align: center; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stepper > button { width: 44px; min-height: 44px; border-radius: 10px; border: 1px solid var(--hairline); background: transparent; color: var(--text); font-size: 17px; padding: 0; flex-shrink: 0; }
+.stepper input { flex: 1; min-width: 0; min-height: 44px; text-align: center; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .stepper .now-btn { width: auto; font-size: 12px; font-weight: 600; border-color: var(--accent); color: var(--accent); padding: 0 12px; }
 .qty-chips { display: flex; gap: 6px; }
-.qty-chips .opt { flex: 1; height: 38px; border-radius: 10px; font-size: 13px; padding: 0; }
+.qty-chips .opt { flex: 1; min-height: 38px; border-radius: 10px; font-size: 13px; padding: 0; }
 .reason-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .reason-chips .opt { border-radius: 999px; padding: 6px 11px; font-size: 12px; }
 .sheet > input, .sheet > textarea { margin-top: 8px; }
-.order-cta { margin-top: 18px; height: 50px; }
+.order-cta { margin-top: 18px; min-height: 50px; }
 
 input, textarea {
   font-family: inherit;
@@ -460,10 +460,10 @@ input, textarea {
 .down { color: var(--red); }
 
 .pill {
-  height: 48px;
+  min-height: 48px;
   border-radius: 999px;
   border: none;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -478,9 +478,9 @@ input, textarea {
 .pill-primary { background: var(--grad); color: #fff; }
 .pill-secondary { border: 1px solid var(--hairline); color: var(--dim); font-size: 14px; }
 .pill-danger { background: var(--danger); color: #fff; font-weight: 600; }
-.pill-long { background: var(--green); color: #fff; font-size: 16px; font-weight: 700; }
-.pill-short { background: var(--red); color: #fff; font-size: 16px; font-weight: 700; }
-.pill-full { width: 100%; font-size: 16px; }
+.pill-long { background: var(--green); color: #fff; font-size: 15px; font-weight: 700; }
+.pill-short { background: var(--red); color: #fff; font-size: 15px; font-weight: 700; }
+.pill-full { width: 100%; font-size: 15px; }
 
 .stats {
   display: grid;
@@ -495,7 +495,7 @@ input, textarea {
   text-align: center;
 }
 .stat b {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.3px;
   display: block;
@@ -589,7 +589,7 @@ dialog::backdrop {
   backdrop-filter: blur(4px);
 }
 dialog h3 {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.374px;
   text-align: center;
@@ -603,13 +603,13 @@ dialog p {
   line-height: 1.47;
 }
 dialog .actions { display: flex; gap: 12px; margin-top: 22px; }
-dialog .actions .pill { flex: 1; height: 44px; }
-dialog .actions .pill-secondary { color: var(--text); font-size: 15px; }
+dialog .actions .pill { flex: 1; min-height: 44px; }
+dialog .actions .pill-secondary { color: var(--text); font-size: 14px; }
 
 /* 회고 v2 */
 .emotion-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .emotion {
-  height: 40px;
+  min-height: 40px;
   border-radius: 999px;
   padding: 0 15px;
   display: flex;
@@ -680,7 +680,7 @@ dialog .actions .pill-secondary { color: var(--text); font-size: 15px; }
   scrollbar-width: none;
 }
 .filter-chip {
-  height: 36px;
+  min-height: 36px;
   border-radius: 999px;
   padding: 0 16px;
   font-size: 13px;
@@ -708,7 +708,7 @@ dialog .actions .pill-secondary { color: var(--text); font-size: 15px; }
 
 .empty-tile {
   width: 64px;
-  height: 64px;
+  min-height: 64px;
   border-radius: 20px;
   background: var(--card2);
   display: flex;
@@ -720,7 +720,7 @@ dialog .actions .pill-secondary { color: var(--text); font-size: 15px; }
 .section-label { font-size: 13px; font-weight: 600; color: var(--dim); margin: 10px 2px -6px; }
 .setting-card { padding: 0; gap: 0; overflow: hidden; }
 .setting-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
-.setting-row .label { flex: 1; font-size: 15px; letter-spacing: -0.2px; }
+.setting-row .label { flex: 1; font-size: 14px; letter-spacing: -0.2px; }
 .setting-icon {
   width: 32px;
   height: 32px;
@@ -871,7 +871,7 @@ dialog .actions .pill-secondary { color: var(--text); font-size: 15px; }
   border-radius: 10px;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 15px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -899,7 +899,7 @@ dialog .actions .pill-secondary { color: var(--text); font-size: 15px; }
   gap: 6px;
   margin-top: 6px;
 }
-.cta-skip { height: 40px; background: transparent; color: var(--accent); font-size: 13px; font-weight: 600; }
+.cta-skip { min-height: 40px; background: transparent; color: var(--accent); font-size: 13px; font-weight: 600; }
 .lock-circle {
   width: 44px;
   height: 44px;

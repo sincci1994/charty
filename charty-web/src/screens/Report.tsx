@@ -38,7 +38,7 @@ export default function Report() {
       {fullLock ? (
         <div className="card center" style={{ padding: '32px 20px', gap: 10, marginTop: 8 }}>
           <span className="lock-circle"><Lock size={18} /></span>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>분석할 세션이 아직 부족해요</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>분석할 세션이 아직 부족해요</div>
           <div className="dim" style={{ fontSize: 12 }}>판단 기록이 있는 {NEED_SESSIONS}세션 완료 후 열려요 ({judged}/{NEED_SESSIONS})</div>
           <div className="lock-track"><div style={{ width: `${Math.round((judged / NEED_SESSIONS) * 100)}%` }} /></div>
         </div>
@@ -58,7 +58,7 @@ export default function Report() {
                   </>
                 ) : (
                   <>
-                    <div className="num" style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: TONE[m.tone ?? 'text'] }}>{m.value}</div>
+                    <div className="num" style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', color: TONE[m.tone ?? 'text'] }}>{m.value}</div>
                     <div style={{ fontSize: 11, lineHeight: 1.45 }}>{m.desc}</div>
                     <div className="dim" style={{ fontSize: 10, marginTop: 2, lineHeight: 1.4 }}>{m.basis}</div>
                   </>

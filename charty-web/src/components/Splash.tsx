@@ -29,7 +29,7 @@ export default function Splash({ hidden, onSkip }: { hidden: boolean; onSkip: ()
         </svg>
         <img src="/logo-mark.png" alt="" style={{ position: 'absolute', inset: 0, width: 132, height: 132, opacity: 0, animation: 'chFade 0.45s ease 1.95s both' }} />
       </div>
-      <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.5px', color: '#F5F7FF', marginTop: 26, opacity: 0, animation: 'chUp 0.55s cubic-bezier(0.2,0.7,0.2,1) 2.1s both', position: 'relative' }}>Charty</div>
+      <div style={{ fontSize: 29, fontWeight: 800, letterSpacing: '-0.5px', color: '#F5F7FF', marginTop: 26, opacity: 0, animation: 'chUp 0.55s cubic-bezier(0.2,0.7,0.2,1) 2.1s both', position: 'relative' }}>Charty</div>
       <div style={{ fontSize: 13, color: '#8A93BE', marginTop: 8, opacity: 0, animation: 'chUp 0.55s cubic-bezier(0.2,0.7,0.2,1) 2.25s both', position: 'relative' }}>차트 위에서 배우는 매매 감각</div>
       <div style={{ position: 'absolute', bottom: 64, fontSize: 11, color: 'rgba(154,163,199,0.55)', opacity: 0, animation: 'chFade 0.6s ease 2s both' }}>탭해서 건너뛰기</div>
     </div>

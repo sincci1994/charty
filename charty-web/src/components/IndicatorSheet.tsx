@@ -83,7 +83,7 @@ export default function IndicatorSheet({ show, cfg, onShow, onCfg, onClose }: Pr
     >
       <div className="sheet-handle" />
       <div className="sheet-head">
-        <span style={{ fontSize: 17, fontWeight: 700 }}>보조지표 설정</span>
+        <span style={{ fontSize: 16, fontWeight: 700 }}>보조지표 설정</span>
         <button className="sheet-done" onClick={onClose}>완료</button>
       </div>
       <div className="ind-set-list">

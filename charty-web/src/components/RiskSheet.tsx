@@ -47,7 +47,7 @@ export default function RiskSheet({ kind, avgPrice, currentPrice, current, onClo
       onClick={(e) => { if (e.target === ref.current) onClose() }}
     >
       <div className="sheet-handle" />
-      <div style={{ fontSize: 16, fontWeight: 700 }}>
+      <div style={{ fontSize: 15, fontWeight: 700 }}>
         {isSl ? '손절가' : '목표가'} {current != null ? '수정' : '설정'}
       </div>
 
