@@ -161,3 +161,29 @@ describe('상수', () => {
     expect(FX).toBeGreaterThan(1)
   })
 })
+
+describe('note — 기타 주관식 근거 배관', () => {
+  it('매수·매도 체결 Trade에 note가 실린다', () => {
+    const s = sim({
+      positions: { LONG: { qty: 5, avgPrice: 100 } },
+      openOrders: [
+        { id: 'a', side: 'OPEN_LONG', price: 100, qty: 2, reasons: ['기타'], note: '눌림목 매수' },
+        { id: 'b', side: 'CLOSE_LONG', price: 105, qty: 5, reasons: ['기타'], note: '목표 도달' },
+      ],
+    })
+    fillOrders(s, candle(90, 110))
+    expect(s.trades.map((t) => t.note)).toEqual(['눌림목 매수', '목표 도달'])
+  })
+  it('유동성 부족으로 두 캔들에 나눠 체결돼도 각 Trade에 note가 실린다', () => {
+    const s = sim({ openOrders: [{ id: 'a', side: 'OPEN_LONG', price: 100, qty: 20, reasons: ['기타'], note: '분할 매수' }] })
+    fillOrders(s, candle(90, 110, 108, 105, 100)) // v=100 → CAP 10% = 10주만
+    fillOrders(s, candle(90, 110, 108, 105, 100))
+    expect(s.trades).toHaveLength(2)
+    expect(s.trades.every((t) => t.note === '분할 매수')).toBe(true)
+  })
+  it('세션 종료 강제 청산은 사용자 판단이 아니므로 note가 없다', () => {
+    const s = sim({ positions: { LONG: { qty: 5, avgPrice: 100 } } })
+    forceCloseAll(s, candle(90, 110))
+    expect(s.trades[0].note).toBeUndefined()
+  })
+})

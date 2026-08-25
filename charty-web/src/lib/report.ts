@@ -144,6 +144,11 @@ export function reasonDist(trades: Trade[]): { name: string; n: number }[] {
   return [...count.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n)
 }
 
+// '기타' 주관식 근거 — 부분체결로 한 주문이 여러 Trade가 되므로 중복 제거
+export function tradeNotes(trades: Trade[]): string[] {
+  return [...new Set(trades.map((t) => t.note).filter((n): n is string => !!n))]
+}
+
 // ── 화면 A: 세션 리포트 ────────────────────────────────────
 
 export function sessionObservations(trades: Trade[], events: SimEvent[], tfSec: number): Observation[] {

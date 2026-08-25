@@ -10,6 +10,7 @@ import type { SyncedState } from './lib/sync'
 // R5 주문 판단 기록 — reasons 필수(UI에서 강제), sl/tp 선택, ms=시트 열림→제출 소요시간(R6)
 export interface Judgment {
   reasons: string[]
+  note?: string
   sl?: number
   tp?: number
   ms?: number
@@ -23,7 +24,7 @@ interface State {
   candles: Candle[] // 활성 시뮬의 전체 캔들 (localStorage에 저장 안 함)
   theme: 'light' | 'dark' | 'charty' | null // null = 시스템 설정 따름, charty = 브랜드 남색 그라데이션
   coach: boolean // R16 — 뉴스·재무 탭 도우미 해석 카드 (기기 로컬 설정)
-  waitlistAt: number | null // R7 지불의사 게이트 — '미리 신청하기' 클릭 시각
+  waitlistAt: number | null // R7 지불의사 게이트 — '미리 신청하기' 클릭 시각. 리포트 미출시로 CTA 제거(2026-08-26), 현재 미수집 · 과거 기록만 보존
   welcomed: boolean // R12 — 첫 방문 웰컴 화면을 지나쳤는가 (기록 있는 기존 유저는 게이트가 자동 통과)
   stateUpdatedAt: number // R13 — 동기화 슬라이스(SyncedState)의 마지막 변이 시각, 기기 간 LWW 비교 기준
   syncError: boolean // R13 — 마지막 pull 실패 여부 (비영속, More 문구용)
@@ -41,7 +42,6 @@ interface State {
   setRisk: (kind: 'sl' | 'tp', value: number) => void
   logNewsView: () => void
   logFundView: () => void
-  joinWaitlist: () => void
   endNow: () => void
   discardSim: () => void
   submitReview: (emotion: string, memo: string) => void
@@ -147,7 +147,7 @@ export const useStore = create<State>()(
         const err = validateOrder(activeSim, side, price, qty)
         if (err) return err
         const sim = structuredClone(activeSim)
-        sim.openOrders.push({ id: crypto.randomUUID(), side, price, qty, reasons: j?.reasons, sl: j?.sl, tp: j?.tp })
+        sim.openOrders.push({ id: crypto.randomUUID(), side, price, qty, reasons: j?.reasons, note: j?.note, sl: j?.sl, tp: j?.tp })
         ;(sim.events ??= []).push({ ts: candles[sim.cursor]?.ts ?? 0, k: 'order', ms: j?.ms })
         set({ activeSim: sim })
         return null
@@ -191,7 +191,6 @@ export const useStore = create<State>()(
         set({ activeSim: sim })
       },
 
-      joinWaitlist: () => set({ waitlistAt: Date.now() }),
 
       endNow: () => {
         const { activeSim, candles } = get()

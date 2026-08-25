@@ -45,7 +45,7 @@ function execute(sim: ActiveSim, o: Order, ts: number, price: number, qty: numbe
       pos.sl = o.sl
     }
     if (o.tp != null) pos.tp = o.tp
-    sim.trades.push({ ts, side, price, qty, reasons: o.reasons, sl: o.sl, tp: o.tp })
+    sim.trades.push({ ts, side, price, qty, reasons: o.reasons, note: o.note, sl: o.sl, tp: o.tp })
   } else {
     const key = side === 'CLOSE_LONG' ? 'LONG' : 'SHORT'
     const pos = sim.positions[key]
@@ -53,7 +53,7 @@ function execute(sim: ActiveSim, o: Order, ts: number, price: number, qty: numbe
     const q = Math.min(qty, pos.qty)
     if (key === 'LONG') {
       sim.cash += price * q * FX * (1 - FEE)
-      sim.trades.push({ ts, side, price, qty: q, pnl: (price - pos.avgPrice) * q * FX, reasons: o.reasons })
+      sim.trades.push({ ts, side, price, qty: q, pnl: (price - pos.avgPrice) * q * FX, reasons: o.reasons, note: o.note })
     } else {
       // 증거금(avgPrice*q) 반환 + 손익(avgPrice - price)*q − 청산 명목가 수수료
       sim.cash += (2 * pos.avgPrice - price - FEE * price) * q * FX

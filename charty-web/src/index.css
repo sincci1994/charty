@@ -450,6 +450,7 @@ input, textarea {
   resize: none;
 }
 .hint-msg { font-size: 12px; color: var(--accent); }
+.hint-msg.warn { color: var(--red); }
 
 .empty { color: var(--dim); text-align: center; padding: 24px 0; line-height: 1.6; }
 
@@ -889,17 +890,6 @@ dialog .actions .pill-secondary { color: var(--text); font-size: 14px; }
   gap: 5px;
   padding: 0 12px;
 }
-.cta-card {
-  border: 1px solid var(--accent);
-  border-radius: 16px;
-  background: var(--accent-soft);
-  padding: 18px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 6px;
-}
-.cta-skip { min-height: 40px; background: transparent; color: var(--accent); font-size: 13px; font-weight: 600; }
 .lock-circle {
   width: 44px;
   height: 44px;

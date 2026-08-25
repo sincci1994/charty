@@ -21,10 +21,13 @@ interface Props {
 export default function OrderSheet({ sim, currentPrice, candle, buy, onClose }: Props) {
   const placeOrder = useStore((s) => s.placeOrder)
   const ref = useRef<HTMLDialogElement>(null)
+  const reasonRef = useRef<HTMLDivElement>(null)
+  const noteRef = useRef<HTMLInputElement>(null)
   const openedAt = useRef(Date.now()) // R6: 시트 열림→제출 소요시간
   const [limit, setLimit] = useState('')
   const [qty, setQty] = useState('')
   const [reasons, setReasons] = useState<string[]>([])
+  const [note, setNote] = useState('') // '기타' 선택 시 주관식 근거
   const [foldOpen, setFoldOpen] = useState(false)
   const [slPct, setSlPct] = useState(0)
   const [sl, setSl] = useState('')
@@ -42,13 +45,29 @@ export default function OrderSheet({ sim, currentPrice, candle, buy, onClose }: 
   const pendingSell = sim.openOrders.filter((o) => o.side === 'CLOSE_LONG').reduce((s, o) => s + o.qty, 0)
   const avail = held - pendingSell
   const qtyV = Number(qty) || 0
-  const canOrder = qtyV >= 1 && Number(limit) > 0 && reasons.length > 0
+  // 가격·수량은 버튼 비활성으로, 이유는 눌렀을 때 흔들림으로 알린다 — 이유는 '왜 필수인지'를 보여줘야 하는 값
+  const canOrder = qtyV >= 1 && Number(limit) > 0
+  const needReason = reasons.length === 0
+  const needNote = reasons.includes('기타') && !note.trim()
 
   const miss = [
     Number(limit) > 0 ? null : '가격',
     qtyV >= 1 ? null : '수량',
-    reasons.length > 0 ? null : '이유',
   ].filter(Boolean)
+
+  // ponytail: 애니메이션은 index.css @keyframes가 원칙이나, 제출 실패마다 재시작이 필요해 여기만 WAAPI.
+  // cancel 없이는 연타 시 Animation이 중첩돼 튄다. 천장: 이 시트 전용.
+  // 경로: 재시작이 필요한 곳이 늘면 index.css로 승격
+  const shake = (el: HTMLElement | null) => {
+    if (!el) return
+    el.scrollIntoView({ block: 'nearest' }) // 시트가 스크롤된 상태면 흔들림이 화면 밖에서 일어난다
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    el.getAnimations().forEach((a) => a.cancel())
+    el.animate(
+      [{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }],
+      { duration: 320, easing: 'ease-in-out' },
+    )
+  }
 
   const pickPct = (p: number) => {
     const n = buy ? Math.floor((sim.cash * p) / 100 / (limitV * FX * (1 + FEE))) : Math.floor((avail * p) / 100)
@@ -60,7 +79,9 @@ export default function OrderSheet({ sim, currentPrice, candle, buy, onClose }: 
 
   const toggleReason = (r: string) => {
     setMsg('')
-    setReasons(reasons.includes(r) ? reasons.filter((x) => x !== r) : [...reasons, r])
+    const on = reasons.includes(r)
+    if (r === '기타' && on) setNote('') // 화면에 없는 텍스트가 저장되는 유령 데이터 방지
+    setReasons(on ? reasons.filter((x) => x !== r) : [...reasons, r])
   }
 
   const pickRisk = (kind: 'sl' | 'tp', p: number) => {
@@ -82,7 +103,7 @@ export default function OrderSheet({ sim, currentPrice, candle, buy, onClose }: 
     // 방향 검증 — 역방향 리스크 값은 설정 즉시 도달해 데이터로 무의미
     if (slV != null && slV >= limitV) return setMsg('손절가는 지정가보다 낮아야 해요')
     if (tpV != null && tpV <= limitV) return setMsg('목표가는 지정가보다 높아야 해요')
-    const err = placeOrder(side, Number(limit), qtyV, { reasons, sl: slV, tp: tpV, ms: Date.now() - openedAt.current })
+    const err = placeOrder(side, Number(limit), qtyV, { reasons, note: note.trim() || undefined, sl: slV, tp: tpV, ms: Date.now() - openedAt.current })
     if (err) setMsg(err)
     else onClose()
   }
@@ -152,15 +173,26 @@ export default function OrderSheet({ sim, currentPrice, candle, buy, onClose }: 
 
       <div className="field-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         왜 이 주문인가요?
-        <span className="dim" style={{ fontSize: 10, fontWeight: 400 }}>복수 선택 · 필수</span>
+        <span className="dim" style={{ fontSize: 10, fontWeight: 400 }}>
+          복수 선택 · <b style={{ color: 'var(--red)', fontWeight: 700 }}>필수</b>
+        </span>
       </div>
-      <div className="reason-chips">
+      <div className="reason-chips" ref={reasonRef}>
         {REASONS.map((r) => (
           <button key={r} className={reasons.includes(r) ? 'opt selected' : 'opt'} onClick={() => toggleReason(r)}>
             {r}
           </button>
         ))}
       </div>
+      {reasons.includes('기타') && (
+        <input
+          ref={noteRef}
+          maxLength={100}
+          placeholder="어떤 근거였는지 짧게 적어주세요"
+          value={note}
+          onChange={(e) => { setMsg(''); setNote(e.target.value) }}
+        />
+      )}
       <div className="dim" style={{ fontSize: 11, marginTop: 7 }}>감정도 기록할 가치가 있는 근거예요</div>
 
       {buy && (
@@ -207,11 +239,19 @@ export default function OrderSheet({ sim, currentPrice, candle, buy, onClose }: 
         </div>
       )}
 
-      <button className={`pill pill-full order-cta ${buy ? 'pill-long' : 'pill-short'}`} disabled={!canOrder} onClick={submit}>
+      <button
+        className={`pill pill-full order-cta ${buy ? 'pill-long' : 'pill-short'}`}
+        disabled={!canOrder}
+        onClick={() => {
+          if (needReason) { setMsg('주문 이유를 선택해주세요'); return shake(reasonRef.current) }
+          if (needNote) { setMsg('기타 근거를 적어주세요'); return shake(noteRef.current) }
+          submit()
+        }}
+      >
         {buy ? '매수하기' : '매도하기'}
       </button>
       {msg ? (
-        <div className="hint-msg center">{msg}</div>
+        <div className="hint-msg center warn">{msg}</div>
       ) : !canOrder ? (
         <div className="hint-msg center">{miss.join(' · ')} 입력 후 주문할 수 있어요</div>
       ) : null}

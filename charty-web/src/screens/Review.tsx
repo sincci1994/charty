@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Navigate, useNav } from '../lib/nav'
 import { useStore } from '../store'
 import { TF, fmtW, styleLabel } from '../lib/data'
-import { reasonDist, sessionObservations, type Observation } from '../lib/report'
+import { reasonDist, sessionObservations, tradeNotes, type Observation } from '../lib/report'
 
 const EMOTIONS = [['😰', '불안함'], ['😬', '긴장됨'], ['😎', '자신감'], ['😢', '우울함'], ['😐', '무덤덤함']] as const
 
@@ -10,11 +10,12 @@ interface SessionReport {
   resultLine: string
   observations: Observation[]
   dist: { name: string; n: number }[]
+  notes: string[]
 }
 
 export default function Review() {
   const nav = useNav()
-  const { activeSim: sim, submitReview, waitlistAt, joinWaitlist } = useStore()
+  const { activeSim: sim, submitReview } = useStore()
   const [emotion, setEmotion] = useState('')
   const [memo, setMemo] = useState('')
   // 저장 순간 sim이 비워지므로 리포트는 저장 직전에 계산해 로컬로 보관
@@ -54,19 +55,14 @@ export default function Review() {
                 <span key={d.name} className="dist-chip">{d.name} <b>{d.n}</b></span>
               ))}
             </div>
+            {report.notes.map((n) => (
+              <div key={n} className="dim" style={{ fontSize: 11, lineHeight: 1.5 }}>“{n}”</div>
+            ))}
           </div>
         )}
 
-        <div className="cta-card">
-          <div style={{ fontSize: 14, fontWeight: 700 }}>이런 리포트를 매 세션 받아보세요</div>
-          <div className="dim" style={{ fontSize: 12, lineHeight: 1.5 }}>누적 행동 분석과 맞춤 훈련 추천을 준비하고 있어요</div>
-          {/* 가격 표시 제거(2026-08-15) — 유료화 신호는 아직 노출하지 않기로. 지불의사 측정은 신청 클릭(waitlistAt)만으로 */}
-          <div className="dim" style={{ fontSize: 11 }}>출시 예정</div>
-          <button className="pill pill-primary pill-full" style={{ marginTop: 8 }} disabled={!!waitlistAt} onClick={joinWaitlist}>
-            {waitlistAt ? '신청 완료 ✓' : '미리 신청하기'}
-          </button>
-          <button className="cta-skip" onClick={() => nav('/', { replace: true })}>괜찮아요, 홈으로</button>
-        </div>
+        {/* 구독 예고 CTA 제거(2026-08-26) — 리포트 기능이 없는 채로 매 세션 권유하지 않는다.
+            출시 때 design-prompts/12-behavior-report.md 5번 항목과 함께 되살린다 */}
 
         <div className="cta-bar" style={{ borderTop: '1px solid var(--hairline)' }}>
           <button className="pill pill-secondary pill-full" onClick={() => nav('/', { replace: true })}>홈으로</button>
@@ -86,6 +82,7 @@ export default function Review() {
       resultLine: `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}% · 거래 ${sim.trades.length}회 · ${styleLabel(sim.style, sim.styleLabel)} · ${new Date().toLocaleDateString()}`,
       observations: sessionObservations(sim.trades, sim.events ?? [], TF[sim.timeframe].sec),
       dist: reasonDist(sim.trades),
+      notes: tradeNotes(sim.trades),
     })
     submitReview(emotion, memo.trim())
   }

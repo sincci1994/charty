@@ -38,7 +38,7 @@ export interface Candle {
 }
 
 // R5 매매 이유 — 수익화방향 5장의 5범주를 범주 레벨로 축약
-export const REASONS = ['기술적', '기업·실적', '거시경제', '뉴스·분위기', '감정·직관'] as const
+export const REASONS = ['기술적', '기업·실적', '거시경제', '뉴스·분위기', '감정·직관', '기타'] as const
 
 export interface Order {
   id: string
@@ -46,6 +46,7 @@ export interface Order {
   price: number
   qty: number
   reasons?: string[] // R5 판단 기록 — optional: 구버전 persist 호환
+  note?: string // '기타' 선택 시 주관식 근거 — reasons에 섞으면 reasonDist 집계가 유일값으로 파편화됨
   sl?: number // 손절 계획가 (기록만, 자동 체결 없음)
   tp?: number // 목표 계획가
 }
@@ -66,6 +67,7 @@ export interface Trade {
   qty: number
   pnl?: number
   reasons?: string[] // 주문의 판단 기록이 체결에 실려 보존됨
+  note?: string // '기타' 주관식 근거
   sl?: number
   tp?: number
   forced?: boolean // 세션 종료 강제 매도 — 사용자 행동이 아니므로 리포트의 '계획 실행' 집계에서 제외

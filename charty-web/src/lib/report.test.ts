@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SimEvent, SimRecord, Trade } from '../types'
-import { assetSeries, cumulativeReport, cumulativeSimTime, episodes, newsFollowups, postLossRatios, sessionObservations, slExecution } from './report'
+import { assetSeries, cumulativeReport, cumulativeSimTime, episodes, newsFollowups, postLossRatios, reasonDist, sessionObservations, slExecution, tradeNotes } from './report'
 
 const H = 3600 // 1h 타임프레임 초
 const buy = (ts: number, price: number, qty: number, extra: Partial<Trade> = {}): Trade => ({ ts, side: 'OPEN_LONG', price, qty, reasons: ['기술적'], ...extra })
@@ -161,5 +161,25 @@ describe('assetSeries', () => {
 
   it('첫(최신) 기록은 자기 기간이 컷오프를 넘겨도 항상 포함', () => {
     expect(assetSeries([rec(1, 110, { startTs: 0, endTs: 100 * D })], 1 * D, 999)).toEqual([1e7, 110, 999])
+  })
+})
+
+describe('reasonDist / tradeNotes — 기타 주관식', () => {
+  it("'기타' 자유문은 reasons가 아닌 note에 있어 범주 집계가 파편화되지 않는다", () => {
+    const d = reasonDist([
+      buy(0, 100, 1, { reasons: ['기타'], note: '실적 발표 전 눌림' }),
+      buy(H, 100, 1, { reasons: ['기타'], note: '지인 추천' }),
+      buy(2 * H, 100, 1, { reasons: ['기술적', '기타'], note: '20일선 지지' }),
+    ])
+    expect(d).toEqual([{ name: '기타', n: 3 }, { name: '기술적', n: 1 }])
+  })
+  it('note는 중복·빈값을 제거해 모은다 (부분체결로 같은 주문이 여러 Trade가 됨)', () => {
+    expect(tradeNotes([
+      buy(0, 100, 1, { note: '눌림목' }),
+      buy(H, 100, 1, { note: '눌림목' }), // 부분체결 이월
+      buy(2 * H, 100, 1, { note: '' }),
+      buy(3 * H, 100, 1),
+      buy(4 * H, 100, 1, { note: '뉴스 보고' }),
+    ])).toEqual(['눌림목', '뉴스 보고'])
   })
 })

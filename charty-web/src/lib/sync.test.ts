@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SimRecord } from '../types'
-import { reconcile } from './sync'
+import { pickState, reconcile } from './sync'
 
 const rec = (id: string, endedAt: number): SimRecord =>
   ({ id, endedAt, style: 'SWING', symbol: 'QQQ', startBalance: 1e6, endBalance: 1e6, pnlPct: 0, tradeCount: 0, emotion: '😐', memo: '' })
@@ -19,5 +19,12 @@ describe('reconcile', () => {
   })
   it('빈 양쪽도 안전', () => {
     expect(reconcile([], [])).toEqual({ merged: [], toPush: [] })
+  })
+})
+
+describe('pickState — 동기화 슬라이스 경계', () => {
+  it('기기 로컬 설정이 새어 들어오지 않는다 (LWW 시계 오염 방지)', () => {
+    const s = { balance: 1e6, activeSim: null, customs: [], waitlistAt: null }
+    expect(Object.keys(pickState(s)).sort()).toEqual(['activeSim', 'balance', 'customs', 'waitlistAt'])
   })
 })
