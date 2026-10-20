@@ -22,7 +22,7 @@
 |---|---|---|---|
 | ① | **CI 품질 게이트 부재** | `.github/workflows/ci.yml`: push 시 `tsc --noEmit` + `vitest run` + `oxlint` (3분짜리) | **다음 작업 전에. ROI 최고** |
 | ② | point-in-time 필터 3중 구현 | `lib/data.ts`(또는 신설 `lib/pit.ts`)에 `beforeNow(ts, nowTs)` 헬퍼 1개 → fund·coach·NewsPanel 교체 + 테스트 | 그 파일들 다음에 만질 때 |
-| ③ | LWW 정책이 shell.tsx에 분산·미테스트 | shell의 비교·시드·와이프 결정을 `sync.ts`의 순수 함수(`decideSync(local, server)`)로 내려 테스트 | 동기화 관련 버그·기능 다음 작업 때 |
+| ③ | ~~LWW 정책이 shell.tsx에 분산·미테스트~~ **2026-10-20 부분 상환**: 비교·시드 결정은 `sync.decideSync(local, pulled, guestStamp)`로 내려 테스트함 | 남은 것: 계정 전환 와이프·게스트 스탬프 리셋·대사 표시(beginSync)는 부작용이 있어 shell에 남음 | 다음 동기화 작업 때 |
 | ④ | Google OAuth 중복 (Welcome/AuthButtons) | `lib/supabase.ts`에 `signInWithGoogle(redirectPath)` 승격, 로고 SVG 1벌화 | Apple 로그인 추가(iOS) 때 함께 |
 | ⑤ | 디자인 이식 화면의 하드코딩 색 | 리팩터 대신 **규칙**: .dc.html 이식 시 색은 `var(--*)` 매핑 (Welcome처럼 의도적 고정만 예외) | 다음 이식부터 적용 |
 
@@ -48,7 +48,7 @@
 - 코드 0줄: Vercel 도메인 추가 + Supabase URL 설정 + twa-manifest host 변경·재빌드. (Archives/2026-08-23 절차 참조)
 
 ### 기능 성장 (화면·지표 증가)
-- 분해 트리거를 미리 정해둠: **화면 500줄 초과 시** 분해 (Simulation 455·Home 450이 경계 —
+- 분해 트리거를 미리 정해둠: **화면 500줄 초과 시** 분해 (Home 468·Simulation 455가 경계 —
   분해선은 이미 명확: Simulation의 블라인드 필터·TF 컷오프→lib, Home의 자산차트·아바타·streak→컴포넌트).
   `data.ts`는 300줄 초과 시 상수/로더/포맷터 분리.
 
