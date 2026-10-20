@@ -1,7 +1,7 @@
 # charty-web 아키텍처
 
 > 작성 2026-08-24 (실측 기준), 2026-10-20 스피드 게임 반영. **낡는 조건**: 라우트·화면 추가, store 슬라이스 변경, 동기화 방식 변경 시 갱신할 것.
-> 수치는 node_modules·.next·out·public/data 제외 실측: **소스 60파일 ~7,790줄** (프로덕션 TS/TSX ~5,910 + CSS 983 + 테스트 897, 2026-10-20 재측정).
+> 수치는 node_modules·.next·out·public/data 제외 실측: **소스 62파일 ~8,140줄** (프로덕션 TS/TSX ~6,100 + CSS 983 + 테스트 1,053, 2026-10-20 스피드 설정 반영 재측정).
 
 ## 한 문장 요약
 
@@ -13,13 +13,13 @@ Next.js App Router를 쓰지만 서버 컴포넌트 0개, 전 페이지 `'use cl
 ```
 app/            라우트 어댑터 15파일 — 대부분 2줄 re-export. 실질 로직은 shell.tsx(187줄) 하나
   └ shell.tsx   탭바·테마·SW등록·콜드스타트 스플래시·웰컴 게이트 + 인증/동기화 오케스트레이션
-src/screens/    화면 12파일 ~2,360줄 (최대: Home 468 · Simulation 455 · Speed 219)
-src/components/ 재사용 UI 12파일 ~1,400줄 (최대: NewsPanel 396 · SpeedChart는 스피드 전용, WealthGauge는 홈·스피드 공용)
-src/store.ts    유일한 zustand 스토어 313줄 — 데이터 필드 10개(+비영속 syncError·syncing) + 액션 20개, persist v2
-src/lib/        도메인 로직 10파일 ~1,340줄
+src/screens/    화면 12파일 ~2,450줄 (최대: Home 458 · Simulation 455 · Speed 303)
+src/components/ 재사용 UI 13파일 ~1,460줄 (최대: NewsPanel 396 · SpeedChart·SpeedSettings는 스피드 전용, WealthGauge는 홈·스피드 공용)
+src/store.ts    유일한 zustand 스토어 317줄 — 데이터 필드 11개(speedCfg는 기기 로컬, +비영속 syncError·syncing) + 액션 21개, persist v2
+src/lib/        도메인 로직 10파일 ~1,410줄
   ├ engine.ts   체결·포지션·손익 139줄 — React·fetch·DOM 참조 0 (아래 '엔진' 참조)
   ├ data.ts     로더+상수+포맷터+지표+부 단계 사다리 285줄 (책임 혼재 — 300줄 넘으면 분할)
-  ├ speed.ts    스피드 게임 규칙(SPEED 임시값)·판정 순수 함수·출제 41줄
+  ├ speed.ts    스피드 게임 고정값·설정 타입·빠른 조합·판정 순수 함수(익절·손절·마감)·출제(진입 자리 수 가중)·차트 y범위용 가까운 선 89줄
   ├ sync.ts     Supabase 동기화 170줄 (기록 병합 + LWW state·decideSync + 구독 디바운스 push)
   ├ report.ts   행동 리포트 344줄 (문장 생성까지 — 문구 규칙 집중이 의도)
   └ coach/fund/profile/supabase/nav
@@ -40,9 +40,9 @@ src/types.ts    전 도메인 타입 150줄 — import 0, 순수 리프. "스키
       → OrderSheet → store.placeOrder → engine.validateOrder (체결은 다음 캔들에서 — 즉시 체결 없음)
       → Review → store.submitReview → SimRecord 적립 + sync.pushRecord (fire-and-forget)
 
-[스피드 게임] Home·Practice → /speed → speed.pickRound(일봉 80개, 다음 판 선로딩)
-      → 롱/숏 탭 → store.playSpeed(진행 세션 있으면 거부 · speedOutcome으로 즉시 정산 · balance만 변경, 기록 없음)
-      → 공개 애니메이션은 표시뿐 (정산 전 잔고로 보여주다 끝나면 반영)
+[스피드 게임] Practice → /speed (첫 진입은 설정 카드 → store.speedCfg 기억, 이후 바로) → speed.pickRound(cfg: 시간봉·판정 캔들 수)
+      → 롱/숏 탭 → store.playSpeed(진행 세션·대사 중이면 거부 · round.cfg로 speedOutcome 즉시 정산 · balance만 변경, 기록 없음)
+      → 공개 애니메이션은 표시뿐 (정산 전 잔고로 보여주다 끝나면 반영). ⚙ 시트는 닫힐 때 한 번 적용 — 안 고른 판은 다시 뽑고, 아니면 다음 판부터
 
 [동기화 2경로]
   기록: append-only, id 합집합 병합 (sync.reconcile — 순수 함수, 테스트 있음)
@@ -62,18 +62,18 @@ src/types.ts    전 도메인 타입 150줄 — import 0, 순수 리프. "스키
 - **순수하지만 in-place 변형** — "호출측에서 structuredClone 후 넘길 것" 계약이 주석으로만 존재(타입 미표현). store의 5개 액션 모두 준수 중
 - SHORT 경로는 UI 진입 불가·구기록 재생용으로만 생존 (v1 마이그레이션이 잔여 세션 폐기)
 
-## 테스트 (vitest 103케이스 — src/lib + store)
+## 테스트 (vitest 125케이스 — src/lib + store)
 
 | 대상 | 케이스 | 비고 |
 |---|--:|---|
 | report | 21 | 에피소드·지표·잠금 게이트 |
 | engine | 14 | 체결·평단·갭·검증 + **상수 부호 방어** |
 | data / coach / fund | 17·9·9 | data에 부 단계 사다리(tierOf·tierProgress)·아바타 경계 포함. coach는 자기 소스 `?raw` 스캔으로 블라인드 금지어 검사 |
-| speed | 9 | TP 통과/정확 터치/갭, 숏 −1 상한, 수수료 왕복이 엔진과 같은 돈인지 |
+| speed | 30 | 익절 통과/정확 터치/갭, 손절 터치/갭, 같은 캔들 둘 다(손절 먼저·시가 우선), 선 없음, 숏 −1 상한, 수수료 왕복, 선 표기·설정 비교, 가중 출제·가까운 선, 출제 자르기 경계(데이터 로더 mock) |
 | sync | 11 | reconcile + 슬라이스 키 고정 + decideSync(LWW·시드 규칙·게스트 스탬프) |
-| store | 13 | wipeLocal, playSpeed(정산·진행 세션·대사 중·NaN 거부), applySync(잔고 채택 규칙·늦은 기록·시계 차) |
+| store | 14 | wipeLocal(speedCfg 유지), playSpeed(정산·판의 손절 규칙·진행 세션·대사 중·NaN 거부), applySync(잔고 채택 규칙·늦은 기록·시계 차) |
 
-미커버: store의 나머지 액션·migrate, shell.tsx의 와이프·게스트 스탬프 리셋·대사 표시(beginSync), speed.pickRound(출제 글루), 컴포넌트 전부(React 테스트 인프라 없음).
+미커버: store의 나머지 액션·migrate, shell.tsx의 와이프·게스트 스탬프 리셋·대사 표시(beginSync), 컴포넌트 전부(React 테스트 인프라 없음).
 **어떤 CI도 test/lint/typecheck를 돌리지 않는다** — daily.yml은 데이터 파이프라인 전용 (부채 ①).
 
 ## 빌드·배포 3타깃 (분기점은 코드 27줄이 전부)
@@ -94,7 +94,7 @@ pathname 끝슬래시 보정 1줄이 새어 있음(빌드 분기의 유일한 �
 
 | # | 부채 | 위험 | 상환 시점 제안 |
 |---|---|---|---|
-| ① | CI에 test/lint/typecheck 게이트 없음 | 103케이스가 있는데 자동 실행 0 — 회귀가 조용히 통과 | **즉시 가치.** daily.yml 옆 push 트리거 워크플로 하나 |
+| ① | CI에 test/lint/typecheck 게이트 없음 | 125케이스가 있는데 자동 실행 0 — 회귀가 조용히 통과 | **즉시 가치.** daily.yml 옆 push 트리거 워크플로 하나 |
 | ② | point-in-time 필터 3중 구현 (fund.ts·coach.ts·NewsPanel) | 미래 누출 방지 규칙이 "주석 합의"로 유지 — 한 곳만 `<=`로 바뀌면 조용히 깨짐 | 다음에 그 파일들 만질 때 헬퍼 1개로 통합 |
 | ③ | ~~LWW 비교·시드 정책이 shell.tsx(UI)에 있고 미테스트~~ → 2026-10-20 `decideSync`로 내려 테스트함 (부분 상환) | 남은 것: 계정 전환 와이프·게스트 스탬프 리셋은 부작용이 있어 shell에 남음 | 다음 동기화 작업 때 |
 | ④ | Welcome/AuthButtons Google OAuth 중복 (호출 2곳 + 로고 SVG 2벌) | 리다이렉트 정책 변경 시 한쪽 누락 | 다음 인증 작업 때 `lib/supabase.ts`로 승격 |
