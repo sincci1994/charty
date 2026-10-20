@@ -1,11 +1,12 @@
 import { useRef } from 'react'
 import { useNav } from '../lib/nav'
-import { SPEED } from '../lib/speed'
+import { TF } from '../lib/data'
+import { linePct } from '../lib/speed'
 import { simProgress, useStore } from '../store'
 
 export default function Practice() {
   const nav = useNav()
-  const { activeSim, endNow } = useStore()
+  const { activeSim, endNow, speedCfg } = useStore()
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   const quit = () => {
@@ -75,7 +76,11 @@ export default function Practice() {
         <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.3px' }}>스피드 게임</div>
         <div className="sub" style={{ fontSize: 13, marginTop: 2 }}>차트 한 장 보고 롱·숏 한 번에</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16, fontSize: 13, letterSpacing: '-0.1px' }}>
-          <div>고른 방향으로 {SPEED.tpPct}% 움직이면 수익, 아니면 {SPEED.period}일 뒤 청산</div>
+          <div>
+            {speedCfg
+              ? `지금 설정 · ${TF[speedCfg.tf].label}봉 · 목표 ${linePct('tp', speedCfg.tpPct)} · 손절 ${linePct('sl', speedCfg.slPct)} · ${speedCfg.period}개`
+              : '처음 들어가면 시간봉과 이익선·손절선을 고를 수 있어요'}
+          </div>
           <div>한 판에 몇 초 · 결과는 내 자산에 바로 반영</div>
         </div>
         {activeSim ? (

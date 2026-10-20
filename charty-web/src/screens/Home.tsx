@@ -211,21 +211,11 @@ export default function Home() {
             }}
             alt="내 캐릭터" width={92} height={92} style={{ flexShrink: 1, minWidth: 40, borderRadius: 14, objectFit: 'cover', width: 'min(92px, 24vw)', height: 'auto', aspectRatio: '1' }} />
         </div>
-        {/* 부 단계 게이지 + 스피드 게임 입구 — 캐릭터 바로 아래. 좁은 화면·큰 글씨에선 버튼만 다음 줄로 넘어간다
-            (위 줄의 min-content 규칙과 따로 놀도록 별도 줄) */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px' }}>
+        {/* 부 단계 게이지 — 캐릭터 바로 아래 (스피드 게임 입구는 연습 탭 한 곳). 래퍼를 남기는 이유: 게이지 루트가
+            flex: 1 1 150px이라 카드(세로 flex)의 직속 자식이 되면 높이가 150px로 늘어난다 */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           <WealthGauge asset={totalAsset} hideAmount={hideAsset} />
-          <button
-            className="pill pill-primary"
-            disabled={!!activeSim}
-            onClick={() => nav('/speed')}
-            style={{ minHeight: 36, padding: '0 14px', fontSize: 13, fontWeight: 600, gap: 4, whiteSpace: 'nowrap', marginLeft: 'auto' }}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 L4 14 H11 L10 22 L20 10 H13 Z" /></svg>
-            스피드 게임
-          </button>
         </div>
-        {activeSim && <div className="dim" style={{ fontSize: 11, textAlign: 'right', marginTop: -4 }}>진행 중인 연습을 마치면 할 수 있어요</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
           <Clock />
           <span className="dim" style={{ fontSize: 11 }}>

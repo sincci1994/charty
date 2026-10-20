@@ -5,7 +5,7 @@ import { EMA_WARMUP, LOOKBACK, SETS, START_BALANCE, STYLES, barsFor, loadCandleC
 import type { SetKey } from './lib/data'
 import { fillOrders, forceCloseAll, validateOrder } from './lib/engine'
 import { SPEED, speedOutcome } from './lib/speed'
-import type { Dir, SpeedPlay, SpeedRound } from './lib/speed'
+import type { Dir, SpeedConfig, SpeedPlay, SpeedRound } from './lib/speed'
 import { cancelPush, clearRemote, pushRecord } from './lib/sync'
 import type { SyncedState } from './lib/sync'
 
@@ -31,6 +31,7 @@ interface State {
   stateUpdatedAt: number // R13 — 동기화 슬라이스(SyncedState)의 마지막 변이 시각, 기기 간 LWW 비교 기준
   syncError: boolean // R13 — 마지막 pull 실패 여부 (비영속, More 문구용)
   syncing: boolean // 로그인·탭 복귀 대사 진행 중 (비영속·비동기화) — 스피드 정산을 막는다
+  speedCfg: SpeedConfig | null // 스피드 게임 설정 (기기 로컬 — 테마처럼 동기화 안 함). null = 아직 안 정함 → 설정 화면부터
   setTheme: (t: 'light' | 'dark' | 'charty') => void
   setCoach: (v: boolean) => void
   setWelcomed: () => void
@@ -53,6 +54,7 @@ interface State {
   applyState: (data: SyncedState, updatedAt: number) => void
   setSyncError: (v: boolean) => void
   setSyncing: (v: boolean) => void
+  setSpeedCfg: (cfg: SpeedConfig) => void
   wipeLocal: () => void
   resetAll: () => void
 }
@@ -72,6 +74,7 @@ export const useStore = create<State>()(
       stateUpdatedAt: 0,
       syncError: false,
       syncing: false,
+      speedCfg: null,
       setTheme: (theme) => set({ theme }),
       setCoach: (coach) => set({ coach }),
       setWelcomed: () => set({ welcomed: true }),
@@ -217,7 +220,7 @@ export const useStore = create<State>()(
       playSpeed: (round, dir) => {
         const { activeSim, syncing, balance } = get()
         if (activeSim || syncing) return null
-        const out = speedOutcome(round.candles, SPEED.lookback - 1, dir)
+        const out = speedOutcome(round.candles, SPEED.lookback - 1, dir, round.cfg) // 판이 뽑힐 때의 규칙 — 그사이 설정을 바꿔도 그대로
         const stake = Math.round((balance * SPEED.stakePct) / 100)
         const pnl = Math.round(stake * out.ret)
         if (!Number.isFinite(pnl)) return null
@@ -272,6 +275,7 @@ export const useStore = create<State>()(
         set({ ...data, stateUpdatedAt: updatedAt, ...(data.activeSim?.id !== get().activeSim?.id ? { candles: [] } : {}) }),
       setSyncError: (syncError) => set({ syncError }),
       setSyncing: (syncing) => set({ syncing }),
+      setSpeedCfg: (speedCfg) => set({ speedCfg }),
 
       // 로그아웃·계정 전환 — 이 기기의 '계정 데이터'만 비운다. 서버는 안 건드림(재로그인 때 복구된다).
       // theme·coach는 기기 로컬 설정이라 유지 — 로그아웃했다고 다크모드가 풀리면 그건 버그다.
@@ -292,7 +296,7 @@ export const useStore = create<State>()(
     {
       name: 'charty',
       version: 2,
-      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records, customs: s.customs, theme: s.theme, coach: s.coach, waitlistAt: s.waitlistAt, welcomed: s.welcomed, stateUpdatedAt: s.stateUpdatedAt }),
+      partialize: (s) => ({ balance: s.balance, activeSim: s.activeSim, records: s.records, customs: s.customs, theme: s.theme, coach: s.coach, waitlistAt: s.waitlistAt, welcomed: s.welcomed, stateUpdatedAt: s.stateUpdatedAt, speedCfg: s.speedCfg }),
       // v1 현물 전환: SHORT 포지션·주문이 남은 진행 세션은 UI로 다룰 수 없으므로 폐기 (기록·잔고는 유지)
       // v2 통화 정합(FX): 구스케일($축 현금)로 진행 중이던 세션은 평가액이 어긋나므로 폐기 (기록·잔고는 유지)
       migrate: (persisted, version) => {

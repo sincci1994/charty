@@ -1,29 +1,36 @@
 import { describe, expect, it, vi } from 'vitest'
 import { useStore } from './store'
 import { START_BALANCE } from './lib/data'
-import { SPEED } from './lib/speed'
+import { SPEED, SPEED_DEFAULT } from './lib/speed'
+import type { SpeedConfig } from './lib/speed'
 import { initStateSync } from './lib/sync'
 import type { ActiveSim, Candle, CustomStyle, SimRecord } from './types'
 
 // 스피드 1판 — 진입(59번) 종가 100, 다음 캔들(60번) 고가 106이라 롱은 즉시 TP(105), 숏은 끝까지 제자리
-const round = (entryClose = 100) => {
-  const candles: Candle[] = Array.from({ length: SPEED.lookback + SPEED.period }, () => ({ ts: 1, o: 100, h: 101, l: 99, c: 100, v: 1e6 }))
-  candles[SPEED.lookback] = { ...candles[SPEED.lookback], h: 106 }
+const round = (entryClose = 100, cfg: SpeedConfig = SPEED_DEFAULT, low60 = 99) => {
+  const candles: Candle[] = Array.from({ length: SPEED.lookback + cfg.period }, () => ({ ts: 1, o: 100, h: 101, l: 99, c: 100, v: 1e6 }))
+  candles[SPEED.lookback] = { ...candles[SPEED.lookback], h: 106, l: low60 }
   candles[SPEED.lookback - 1] = { ...candles[SPEED.lookback - 1], c: entryClose }
-  return { symbol: 'TEST', candles }
+  return { symbol: 'TEST', candles, cfg }
 }
 
 describe('playSpeed', () => {
   it('누르는 즉시 잔고 절반을 걸어 정산 — 롱 TP 도달', () => {
     useStore.setState({ balance: 10_000_000, activeSim: null })
     const play = useStore.getState().playSpeed(round(), 'long')
-    expect(play).toMatchObject({ dir: 'long', stake: 5_000_000, pnl: 239_510, hitTp: true, before: 10_000_000 })
+    expect(play).toMatchObject({ dir: 'long', stake: 5_000_000, pnl: 239_510, reason: 'tp', before: 10_000_000 })
     expect(useStore.getState().balance).toBe(10_239_510)
   })
   it('숏이 제자리로 끝나면 수수료만큼 잃는다', () => {
     useStore.setState({ balance: 10_000_000, activeSim: null })
-    expect(useStore.getState().playSpeed(round(), 'short')).toMatchObject({ pnl: -9_990, hitTp: false })
+    expect(useStore.getState().playSpeed(round(), 'short')).toMatchObject({ pnl: -9_990, reason: 'end' })
     expect(useStore.getState().balance).toBe(9_990_010)
+  })
+  it('판이 들고 온 규칙으로 판정 — 손절 3%면 같은 캔들이 TP를 넘어도 손절 먼저', () => {
+    useStore.setState({ balance: 10_000_000, activeSim: null })
+    const play = useStore.getState().playSpeed(round(100, { tf: '1d', tpPct: 5, slPct: 3, period: 20 }, 96), 'long')
+    expect(play).toMatchObject({ reason: 'sl', exitPrice: 97, stake: 5_000_000, pnl: -159_690 })
+    expect(useStore.getState().balance).toBe(9_840_310)
   })
   it('진행 중인 연습이 있으면 거부 — 회고 저장이 잔고를 세션 현금으로 덮어써 손익이 사라진다', () => {
     useStore.setState({ balance: 10_000_000, activeSim: { id: 's', done: true } as ActiveSim })
@@ -86,12 +93,12 @@ describe('wipeLocal', () => {
   it('계정 데이터만 비우고 기기 설정(theme·coach)은 남긴다', () => {
     useStore.setState({
       balance: 1, records: [{ id: 'a' } as SimRecord], welcomed: true, stateUpdatedAt: 123,
-      theme: 'dark', coach: false,
+      theme: 'dark', coach: false, speedCfg: SPEED_DEFAULT,
     })
     useStore.getState().wipeLocal()
     const s = useStore.getState()
     expect([s.balance, s.records, s.welcomed, s.stateUpdatedAt]).toEqual([START_BALANCE, [], false, 0])
-    expect([s.theme, s.coach]).toEqual(['dark', false]) // 로그아웃이 다크모드를 풀면 버그
+    expect([s.theme, s.coach, s.speedCfg]).toEqual(['dark', false, SPEED_DEFAULT]) // 로그아웃이 다크모드·스피드 설정을 풀면 버그
   })
 
   it('예약된 디바운스 push를 끊는다 — 빈 슬라이스가 올라가면 customs는 state 행이 유일본이라 소실', () => {
