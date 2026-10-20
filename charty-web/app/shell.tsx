@@ -5,11 +5,27 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useStore } from '../src/store'
 import Splash from '../src/components/Splash'
 import { supabase } from '../src/lib/supabase'
-import { applyServer, initStateSync, pickState, pullState, pushState, syncRecords } from '../src/lib/sync'
+import { applyServer, cancelPush, decideSync, initStateSync, pickState, pullState, pushState, syncRecords } from '../src/lib/sync'
 
 // 계정 전환 와이프 진행 중 — supabase가 INITIAL_SESSION·SIGNED_IN을 연달아 발화해 핸들러가
 // 두 번 큐잉되므로, 두 번째 핸들러가 와이프 이후 가드를 통과해 이전 계정 데이터를 push하는 경합 차단
 let wiping = false
+
+// 대사 진행 표시(store.syncing) — INITIAL_SESSION·SIGNED_IN이 겹쳐 오므로 실행 수로 세고, 각 실행은 한 번만 내린다.
+// 응답이 걸려도 5초 뒤엔 풀어 오프라인 우선 플레이를 막지 않는다
+let syncs = 0
+function beginSync(): () => void {
+  if (syncs++ === 0) useStore.getState().setSyncing(true)
+  let done = false
+  const end = () => {
+    if (done) return
+    done = true
+    clearTimeout(guard)
+    if (--syncs === 0) useStore.getState().setSyncing(false)
+  }
+  const guard = setTimeout(end, 5000)
+  return end
+}
 
 const TABS = [
   { to: '/', label: '홈', path: 'M4 11 L12 4 L20 11 V20 H14 V15 H10 V20 H4 Z' },
@@ -22,8 +38,8 @@ export default function Shell({ children }: { children: ReactNode }) {
   // 정적 export(trailingSlash)에선 pathname이 '/welcome/'처럼 옴 — 끝 슬래시 제거해 정확일치 유지
   const pathname = usePathname().replace(/(.)\/$/, '$1')
   const router = useRouter()
-  // 시뮬/회고는 자체 하단 바 사용, 웰컴은 풀스크린 — 탭바 숨김
-  const onSim = ['/sim', '/review', '/welcome'].includes(pathname)
+  // 시뮬/회고/스피드는 자체 하단 바 사용, 웰컴은 풀스크린 — 탭바 숨김
+  const onSim = ['/sim', '/review', '/welcome', '/speed'].includes(pathname)
   const theme = useStore((s) => s.theme)
 
   // localStorage(zustand persist) 값은 서버 프리렌더와 어긋나므로 마운트 후에만 렌더
@@ -83,8 +99,9 @@ export default function Shell({ children }: { children: ReactNode }) {
       if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
       setTimeout(async () => {
         if (wiping) return
+        let guestStamp = 0 // 게스트 → 계정 로그인이면 리셋 전 스탬프 — 행이 없을 때(새 계정) 시드에만 쓴다
         // 계정 전환 가드 — 이전 계정의 로컬 잔여 데이터가 새 계정 user_id로 push되기 전에 와이프.
-        // 정상 로그아웃은 charty:uid를 지우므로 여기 안 걸린다(게스트 데이터는 그대로 이어받음).
+        // 정상 로그아웃은 charty:uid를 지우므로 여기 안 걸린다(아래 게스트 → 계정 경로로 간다).
         // 세션이 SIGNED_OUT 없이 사라진 경우의 보험으로 남긴다. 같은 계정 재로그인은 기존처럼 병합
         if (session) {
           const prev = localStorage.getItem('charty:uid')
@@ -97,32 +114,44 @@ export default function Shell({ children }: { children: ReactNode }) {
             location.reload()
             return
           }
+          // 게스트(로그아웃 후·이 기기 첫 로그인) → 계정: 계정 우선 (2026-10-20 사용자 결정). 게스트 때 찍힌 스탬프가
+          // LWW로 계정의 state 행(customs·진행 세션·잔고)을 덮지 않게 0으로 내리고, 예약된 게스트 push도 끊는다.
+          // 행이 있으면 서버가 이기고, 없으면(새 계정) 리셋 전 스탬프로 시드해 게스트 상태를 이어받는다. 기록은 합집합.
+          // 첫 await 전에 동기로 끝내야 INITIAL_SESSION·SIGNED_IN 두 번째 실행이 옛 스탬프로 비교하지 않는다
+          // ponytail: pull이 실패한 채 변이가 생기면 그 스탬프가 계정 행을 이긴다(드묾) — 필요해지면 pull 성공 전까지 push 보류
+          if (!prev) {
+            guestStamp = useStore.getState().stateUpdatedAt
+            cancelPush()
+            applyServer(() => useStore.setState({ stateUpdatedAt: 0 }))
+          }
           localStorage.setItem('charty:uid', session.user.id)
         }
         // await 재개마다 신원 재확인 — 대사 왕복 중에 로그아웃이 끼면 syncRecords의 merged가
         // (항상 로컬 스냅샷을 포함하므로) 방금 지운 계정 기록을 스토어·persist에 되살린다
         const uid = session?.user.id ?? null
         const stale = () => localStorage.getItem('charty:uid') !== uid
-        const merged = await syncRecords(useStore.getState().records)
-        if (stale()) return
-        if (merged) applyServer(() => useStore.getState().applySync(merged))
-        if (!session) return
-        const pulled = await pullState()
-        if (stale()) return
-        useStore.getState().setSyncError(pulled === 'error')
-        if (pulled === 'error') return
-        const local = useStore.getState()
-        if (pulled && pulled.updatedAt > local.stateUpdatedAt) {
-          applyServer(() => local.applyState(pulled.data, pulled.updatedAt)) // 서버가 더 새로움 — LWW 반영
-        } else if (pulled && pulled.updatedAt < local.stateUpdatedAt) {
-          void pushState(pickState(local), local.stateUpdatedAt) // 오프라인·게스트 중 변이 재푸시
-        } else if (!pulled) {
-          // 행 없음 — 기기 고유 상태(진행 세션·커스텀·게이트)가 있을 때만 시드.
-          // balance는 records에서 파생 가능해 정보가 아님: 파생값만으로 행을 만들면
-          // 새 기기의 빈 시드가 다른 기기의 실데이터(스탬프 0인 pre-R13 로컬)를 이겨버린다
-          const slice = pickState(local)
-          if (slice.activeSim || slice.customs.length > 0 || slice.waitlistAt != null)
-            void pushState(slice, local.stateUpdatedAt || Date.now())
+        // 대사 중엔 스피드 정산을 막는다 — 낡은 잔고 위의 탭이 새 스탬프로 다른 기기의 더 새 잔고를 덮지 않게
+        const endSync = session ? beginSync() : () => {}
+        try {
+          const merged = await syncRecords(useStore.getState().records)
+          if (stale()) return
+          if (merged) applyServer(() => useStore.getState().applySync(merged))
+          if (!session) return
+          const pulled = await pullState()
+          if (stale()) return
+          useStore.getState().setSyncError(pulled === 'error')
+          if (pulled === 'error') return
+          const local = useStore.getState()
+          const act = decideSync(local, pulled, guestStamp) // 규칙·근거는 sync.ts
+          if (act === 'apply' && pulled) applyServer(() => local.applyState(pulled.data, pulled.updatedAt)) // 서버가 더 새로움
+          else if (act === 'push') {
+            // 로컬이 더 새로움 또는 행 없음 시드. 올린 스탬프를 로컬도 가져야 이후 LWW·로그아웃 비교가 맞는다
+            const at = local.stateUpdatedAt || guestStamp || Date.now()
+            applyServer(() => useStore.setState({ stateUpdatedAt: at }))
+            void pushState(pickState(local), at)
+          }
+        } finally {
+          endSync()
         }
       }, 0)
     })

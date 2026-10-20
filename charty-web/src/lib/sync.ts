@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { START_BALANCE } from './data'
 import { useStore } from '../store'
 import type { ActiveSim, CustomStyle, SimRecord } from '../types'
 
@@ -105,6 +106,23 @@ export async function pullState(): Promise<{ data: SyncedState; updatedAt: numbe
     if (!data) return null
     return { data: data.data as SyncedState, updatedAt: new Date(data.updated_at as string).getTime() }
   } catch (e) { console.warn('[sync]', e); return 'error' }
+}
+
+// 로그인 시 state 행 정책 (부채 ③ — shell에서 내림). 행 있음: 클라이언트 updated_at LWW.
+// 행 없음: 기기 고유 정보가 있을 때만 시드. 기록 파생 잔고만으로 행을 만들면 새 기기의 빈 시드가
+// 다른 기기의 실데이터(스탬프 0인 pre-R13 로컬)를 이긴다. 스피드 손익은 기록 밖이라 잔고≠파생값 = 정보.
+// 스탬프 0인 불일치는 레거시 잔재(08-15 이전 100만 스케일)라 제외 — 스피드 정산은 구독자가 항상 스탬프를 찍는다.
+// guestStamp: 게스트 → 계정 로그인이면 shell이 로컬 스탬프를 0으로 내리고(행이 있으면 계정이 이기게) 리셋 전 값을 넘긴다.
+// 행이 없을 때(새 계정)만 그 값으로 시드를 판단한다 — 안 그러면 게스트가 번 돈이 계정에 영영 안 올라간다
+export function decideSync(
+  local: SyncedState & { stateUpdatedAt: number; records: SimRecord[] },
+  pulled: { updatedAt: number } | null,
+  guestStamp = 0,
+): 'apply' | 'push' | 'none' {
+  if (pulled) return pulled.updatedAt > local.stateUpdatedAt ? 'apply' : pulled.updatedAt < local.stateUpdatedAt ? 'push' : 'none'
+  const derived = local.records[0]?.endBalance ?? START_BALANCE
+  return local.activeSim || local.customs.length > 0 || local.waitlistAt != null
+    || ((local.stateUpdatedAt || guestStamp) > 0 && local.balance !== derived) ? 'push' : 'none'
 }
 
 // 푸시 트리거: 스토어 구독 1개 — 모든 변이가 set()을 지나므로 12개 액션에 개별 훅이 필요 없다.

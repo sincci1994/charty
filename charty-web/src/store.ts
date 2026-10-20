@@ -4,6 +4,8 @@ import type { ActiveSim, Candle, CustomStyle, Side, SimRecord, Style } from './t
 import { EMA_WARMUP, LOOKBACK, SETS, START_BALANCE, STYLES, barsFor, loadCandleCounts, loadCandles, loadTickers, pickRange } from './lib/data'
 import type { SetKey } from './lib/data'
 import { fillOrders, forceCloseAll, validateOrder } from './lib/engine'
+import { SPEED, speedOutcome } from './lib/speed'
+import type { Dir, SpeedPlay, SpeedRound } from './lib/speed'
 import { cancelPush, clearRemote, pushRecord } from './lib/sync'
 import type { SyncedState } from './lib/sync'
 
@@ -28,6 +30,7 @@ interface State {
   welcomed: boolean // R12 — 첫 방문 웰컴 화면을 지나쳤는가 (기록 있는 기존 유저는 게이트가 자동 통과)
   stateUpdatedAt: number // R13 — 동기화 슬라이스(SyncedState)의 마지막 변이 시각, 기기 간 LWW 비교 기준
   syncError: boolean // R13 — 마지막 pull 실패 여부 (비영속, More 문구용)
+  syncing: boolean // 로그인·탭 복귀 대사 진행 중 (비영속·비동기화) — 스피드 정산을 막는다
   setTheme: (t: 'light' | 'dark' | 'charty') => void
   setCoach: (v: boolean) => void
   setWelcomed: () => void
@@ -44,10 +47,12 @@ interface State {
   logFundView: () => void
   endNow: () => void
   discardSim: () => void
+  playSpeed: (round: SpeedRound, dir: Dir) => SpeedPlay | null
   submitReview: (emotion: string, memo: string) => void
   applySync: (records: SimRecord[]) => void
   applyState: (data: SyncedState, updatedAt: number) => void
   setSyncError: (v: boolean) => void
+  setSyncing: (v: boolean) => void
   wipeLocal: () => void
   resetAll: () => void
 }
@@ -66,6 +71,7 @@ export const useStore = create<State>()(
       welcomed: false,
       stateUpdatedAt: 0,
       syncError: false,
+      syncing: false,
       setTheme: (theme) => set({ theme }),
       setCoach: (coach) => set({ coach }),
       setWelcomed: () => set({ welcomed: true }),
@@ -203,6 +209,22 @@ export const useStore = create<State>()(
       // 진행중 시뮬을 기록 없이 폐기 (홈 '새로 시작') — 잔고는 시뮬 시작 전 그대로
       discardSim: () => set({ activeSim: null, candles: [] }),
 
+      // 스피드 게임 1판 정산 — 롱/숏 탭 즉시(결과는 데이터로 이미 확정). 애니메이션 전에 반영하므로 중간에 나가도 결과가 남는다.
+      // SimRecord는 만들지 않는다 — 잔고만 바뀌고, 동기화 슬라이스라 구독자가 스탬프·디바운스 push.
+      // 진행 세션 중 거부: startSim이 잔고를 스냅샷하고 submitReview가 세션 현금으로 덮어써 그사이 손익이 사라진다.
+      // 대사 중 거부: 낡은 잔고 위의 탭이 새 스탬프를 찍어 다른 기기의 더 새 잔고를 LWW로 덮는다.
+      // 비유한수 거부: JSON이 NaN을 null로 직렬화해 persist·state 행을 타고 모든 기기 잔고가 깨진다
+      playSpeed: (round, dir) => {
+        const { activeSim, syncing, balance } = get()
+        if (activeSim || syncing) return null
+        const out = speedOutcome(round.candles, SPEED.lookback - 1, dir)
+        const stake = Math.round((balance * SPEED.stakePct) / 100)
+        const pnl = Math.round(stake * out.ret)
+        if (!Number.isFinite(pnl)) return null
+        set({ balance: balance + pnl })
+        return { ...out, dir, stake, pnl, before: balance }
+      },
+
       submitReview: (emotion, memo) => {
         const { activeSim, candles, records } = get()
         if (!activeSim || !activeSim.done) return
@@ -232,15 +254,24 @@ export const useStore = create<State>()(
         void pushRecord(record) // R11 — 로그인 상태면 서버에도 저장 (실패는 다음 대사가 수습)
       },
 
-      // R11 서버 대사 결과 반영 — 병합본으로 교체, 잔고는 최신 기록의 종료 잔고를 따름
-      // (state 행이 아직 없는 기존 유저의 복원 경로 — state pull이 있으면 뒤이어 applyState가 덮어씀)
-      applySync: (records) => set({ records, balance: records[0]?.endBalance ?? get().balance }),
+      // R11 서버 대사 결과 반영 — 병합본으로 교체. 잔고는 '이 기기가 몰랐던 기록'이 최신이고, 그 기록이 로컬 state의
+      // 마지막 변이보다 나중에 끝났을 때만 그 종료 잔고를 따른다 (새 기기 복원·다른 기기의 새 기록).
+      // 최신이 이미 로컬에 있으면 로컬 잔고가 진실 — 스피드 손익은 기록 밖에 있다. 늦게 올라온 남의 기록이 이미 그 뒤에
+      // 바뀐 로컬 잔고를 되돌리면, 스탬프가 같을 때 뒤이은 LWW(decideSync)가 'none'이라 아무도 못 고친다.
+      // 맨 앞 id 비교가 아닌 포함 검사: submitReview는 정렬 없이 앞에 붙여(기기 간 시계 차) 로컬 [0]이 최신이 아닐 수 있다
+      applySync: (records) => {
+        const newest = records[0]
+        const { records: local, stateUpdatedAt } = get()
+        const foreign = newest && newest.endedAt > stateUpdatedAt && !local.some((r) => r.id === newest.id)
+        set(foreign ? { records, balance: newest.endBalance } : { records })
+      },
 
       // R13 서버 state 반영 — 호출부(shell)가 updatedAt 비교 후 서버가 더 새로울 때만 applyServer로 호출.
       // sim이 교체되면 candles도 비움 — 안 비우면 resume()이 이전 종목 캔들을 재사용해 오표시·크래시
       applyState: (data, updatedAt) =>
         set({ ...data, stateUpdatedAt: updatedAt, ...(data.activeSim?.id !== get().activeSim?.id ? { candles: [] } : {}) }),
       setSyncError: (syncError) => set({ syncError }),
+      setSyncing: (syncing) => set({ syncing }),
 
       // 로그아웃·계정 전환 — 이 기기의 '계정 데이터'만 비운다. 서버는 안 건드림(재로그인 때 복구된다).
       // theme·coach는 기기 로컬 설정이라 유지 — 로그아웃했다고 다크모드가 풀리면 그건 버그다.

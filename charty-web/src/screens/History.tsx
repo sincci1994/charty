@@ -37,6 +37,7 @@ export default function History() {
   // 잔고 시계열 (과거 → 현재) + 통계
   const asc = [...records].sort((a, b) => a.endedAt - b.endedAt)
   const series = [START_BALANCE, ...asc.map((r) => r.endBalance)]
+  if (series[series.length - 1] !== balance) series.push(balance) // 스피드 손익은 기록 밖 — 차트 끝('현재')을 머리의 잔고와 맞춘다
   const winRate = Math.round((records.filter((r) => r.pnlPct > 0).length / records.length) * 100)
   const avgPct = records.reduce((s, r) => s + r.pnlPct, 0) / records.length
   const simTime = cumulativeSimTime(records) // R13 — 차트 시간 필드가 있는 기록만 합산

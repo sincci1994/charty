@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useNav } from '../lib/nav'
+import { SPEED } from '../lib/speed'
 import { simProgress, useStore } from '../store'
 
 export default function Practice() {
@@ -69,18 +70,21 @@ export default function Practice() {
         </div>
       </div>
 
-      {/* Speed Quiz — 준비중 (디밍) */}
-      <div className="card" style={{ borderRadius: 20, padding: '22px 20px', gap: 0, opacity: 0.55 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.3px' }}>스피드 퀴즈</div>
-          <span className="sub" style={{ fontSize: 11, fontWeight: 600, background: 'var(--card2)', borderRadius: 999, padding: '3px 9px' }}>준비중</span>
+      {/* Speed Game — 롱/숏 한 번에 판가름 (세션 중엔 디밍 — 같은 자산을 써서 연습을 마친 뒤에만) */}
+      <div className="card" style={{ borderRadius: 20, padding: '22px 20px', gap: 0, opacity: activeSim ? 0.55 : 1 }}>
+        <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-0.3px' }}>스피드 게임</div>
+        <div className="sub" style={{ fontSize: 13, marginTop: 2 }}>차트 한 장 보고 롱·숏 한 번에</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16, fontSize: 13, letterSpacing: '-0.1px' }}>
+          <div>고른 방향으로 {SPEED.tpPct}% 움직이면 수익, 아니면 {SPEED.period}일 뒤 청산</div>
+          <div>한 판에 몇 초 · 결과는 내 자산에 바로 반영</div>
         </div>
-        <div className="sub" style={{ fontSize: 13, marginTop: 2 }}>빠른 판단 훈련용 퀴즈</div>
-        <div className="sub" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16, fontSize: 13, letterSpacing: '-0.1px' }}>
-          <div>감정/이유 버튼식 선택</div>
-          <div>5분 완성 / 즉시 피드백</div>
-        </div>
-        <div className="pill sub" style={{ background: 'var(--card2)', marginTop: 18, cursor: 'not-allowed' }}>개발 중입니다</div>
+        {activeSim ? (
+          <div className="pill sub" style={{ background: 'var(--card2)', fontSize: 14, marginTop: 18, cursor: 'default' }}>
+            진행중인 연습을 마치면 시작할 수 있어요
+          </div>
+        ) : (
+          <button className="pill pill-primary" style={{ fontWeight: 600, marginTop: 18 }} onClick={() => nav('/speed')}>한 판 해보기</button>
+        )}
       </div>
 
       <dialog ref={dialogRef}>

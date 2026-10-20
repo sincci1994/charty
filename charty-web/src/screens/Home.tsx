@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNav } from '../lib/nav'
 import AssetChart from '../components/AssetChart'
+import WealthGauge from '../components/WealthGauge'
 import { Pins, arrowOf, zoneOf } from '../components/NewsPanel'
 import { START_BALANCE, avatarSrc, fmtDur, fmtW, loadEcon, loadNews } from '../lib/data'
 import { equity } from '../lib/engine'
@@ -148,7 +149,7 @@ export default function Home() {
   const deltaRate = (delta / START_BALANCE) * 100
   const up = delta > 0
   const down = delta < 0
-  const newUser = records.length === 0 && !activeSim
+  const newUser = records.length === 0 && !activeSim && balance === START_BALANCE // 스피드만 한 사용자는 기록 없이도 잔고가 바뀐다
 
   const winRate = records.length ? Math.round((records.filter((r) => r.pnlPct > 0).length / records.length) * 100) : null
   const profitRate = records.length ? records.reduce((s, r) => s + r.pnlPct, 0) / records.length : null
@@ -200,7 +201,7 @@ export default function Home() {
               </div>
             )}
           </div>
-          {/* R14 캐릭터 — 나이(프로필 연령대+누적 시뮬 시간) × 부(자산 배수), 10억 = 펜트하우스 컷신.
+          {/* R14 캐릭터 — 나이(프로필 연령대+누적 시뮬 시간) × 부(WEALTH_TIERS 단계), 10억 = 펜트하우스 컷신.
               성별 세트 에셋이 아직 없으면 onError로 공용 세트 1회 폴백 */}
           <img
             src={avatarSrc(totalAsset, simSec, profile?.ageBand, profile?.gender)}
@@ -210,6 +211,21 @@ export default function Home() {
             }}
             alt="내 캐릭터" width={92} height={92} style={{ flexShrink: 1, minWidth: 40, borderRadius: 14, objectFit: 'cover', width: 'min(92px, 24vw)', height: 'auto', aspectRatio: '1' }} />
         </div>
+        {/* 부 단계 게이지 + 스피드 게임 입구 — 캐릭터 바로 아래. 좁은 화면·큰 글씨에선 버튼만 다음 줄로 넘어간다
+            (위 줄의 min-content 규칙과 따로 놀도록 별도 줄) */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px' }}>
+          <WealthGauge asset={totalAsset} hideAmount={hideAsset} />
+          <button
+            className="pill pill-primary"
+            disabled={!!activeSim}
+            onClick={() => nav('/speed')}
+            style={{ minHeight: 36, padding: '0 14px', fontSize: 13, fontWeight: 600, gap: 4, whiteSpace: 'nowrap', marginLeft: 'auto' }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 L4 14 H11 L10 22 L20 10 H13 Z" /></svg>
+            스피드 게임
+          </button>
+        </div>
+        {activeSim && <div className="dim" style={{ fontSize: 11, textAlign: 'right', marginTop: -4 }}>진행 중인 연습을 마치면 할 수 있어요</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
           <Clock />
           <span className="dim" style={{ fontSize: 11 }}>

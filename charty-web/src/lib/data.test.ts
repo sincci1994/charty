@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SETS, avatarSrc, fmtDur, normalizeCounts, resampleCandles } from './data'
+import { SETS, START_BALANCE, WEALTH_TIERS, avatarSrc, fmtDur, normalizeCounts, resampleCandles, tierOf, tierProgress } from './data'
 import type { Candle } from '../types'
 
 // 13:00 UTC(1h 버킷 경계) 기준 5분봉 생성
@@ -51,12 +51,49 @@ describe('normalizeCounts', () => {
   })
 })
 
+describe('WEALTH_TIERS · tierOf', () => {
+  it('표 불변식 — 10단계, 하한 0부터 오름차순 (findLastIndex가 정렬에 기댄다)', () => {
+    expect(WEALTH_TIERS).toHaveLength(10)
+    expect(WEALTH_TIERS[0].min).toBe(0)
+    WEALTH_TIERS.slice(1).forEach((t, i) => expect(t.min).toBeGreaterThan(WEALTH_TIERS[i].min))
+  })
+  it('하한 이상이면 그 단계 — 음수·0은 거지, 10억 이상은 펜트하우스, 시작 자산은 개미', () => {
+    const cases: [number, number][] = [
+      [-1, 0], [0, 0], [2_999_999, 0], [3_000_000, 1], [7_999_999, 1], [8_000_000, 2],
+      [START_BALANCE, 2], [13_000_000, 3], [20_000_000, 4], [999_999_999, 8], [1e9, 9], [1e13, 9],
+    ]
+    for (const [asset, i] of cases) expect(tierOf(asset), String(asset)).toBe(i)
+    expect(WEALTH_TIERS[tierOf(START_BALANCE)].label).toBe('개미')
+  })
+})
+
+describe('tierProgress — 게이지', () => {
+  it('단계 안 선형 진행률과 다음 단계 — 시작 자산은 개미(800만~1,300만)의 40%', () => {
+    const g = tierProgress(START_BALANCE)
+    expect([g.i, g.cur.label, g.next?.label]).toEqual([2, '개미', '목돈'])
+    expect(g.pct).toBeCloseTo(0.4, 10)
+    expect(g.next!.min - START_BALANCE).toBe(3_000_000)
+  })
+  it('하한 0인 거지 단계도 계산되고, 음수는 0에서 멈춘다', () => {
+    expect(tierProgress(1_500_000).pct).toBeCloseTo(0.5, 10)
+    expect(tierProgress(-5).pct).toBe(0)
+  })
+  it('최고 단계는 다음이 없고 가득 찬다', () => {
+    const g = tierProgress(1e9)
+    expect([g.i, g.next, g.pct]).toEqual([9, undefined, 1])
+  })
+})
+
 describe('avatarSrc', () => {
   const Y = 31_536_000
-  it('부 경계 — 배수 0.99/1.6, 신규 유저(배수 1.0)는 보통', () => {
-    expect(avatarSrc(9_899_999, 0)).toBe('/avatar/child_00.png')
+  it('부 경계 — 사다리 하한(800만·1,300만·10억), 새 단계는 그림이 올 때까지 기존 그림으로 대체', () => {
+    expect(avatarSrc(2_999_999, 0)).toBe('/avatar/child_00.png') // 거지
+    expect(avatarSrc(7_999_999, 0)).toBe('/avatar/child_00.png')
+    expect(avatarSrc(8_000_000, 0)).toBe('/avatar/child_01.png')
     expect(avatarSrc(10_000_000, 0)).toBe('/avatar/child_01.png')
-    expect(avatarSrc(16_000_000, 0)).toBe('/avatar/child_02.png')
+    expect(avatarSrc(13_000_000, 0)).toBe('/avatar/child_02.png')
+    expect(avatarSrc(999_999_999, 0)).toBe('/avatar/child_02.png') // 첫 차~건물주
+    expect(avatarSrc(1_000_000_000, 0)).toBe('/avatar/child_rich.png')
   })
   it('나이 = 연령대 시작 나이 + 시뮬 경과, 경계 30/60', () => {
     expect(avatarSrc(10_000_000, 0, '30대')).toBe('/avatar/young_01.png') // 33세 유저는 어른부터 시작

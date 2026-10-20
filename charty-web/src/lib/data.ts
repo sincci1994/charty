@@ -114,7 +114,30 @@ export const SETS: Record<string, { label: string; vol: string | null; desc: str
 }
 export type SetKey = keyof typeof SETS
 
-// R14 홈 아바타 — 나이=프로필 연령대 시작 나이+시뮬 경과(30/60 경계), 부=원금 대비 배수(0.99/1.6), 10억 = '한국 부자' 펜트하우스 컷신
+// 부(富) 단계 사다리 — 총자산(₩) 하한 오름차순, tierOf가 정렬에 기댄다. img = 아바타 파일 접미사
+// ponytail: 하한·라벨은 임시값. img가 기존 키(00/01/02)인 새 단계(→ 주석의 키)는 새 PNG가 오면 키만 교체 — 런타임 존재 검사 없음
+export const WEALTH_TIERS = [
+  { min: 0, label: '거지', img: '00' }, // → beggar
+  { min: 3_000_000, label: '빈털터리', img: '00' },
+  { min: 8_000_000, label: '개미', img: '01' }, // 시작 자산 1천만
+  { min: 13_000_000, label: '목돈', img: '02' },
+  { min: 20_000_000, label: '첫 차', img: '02' }, // → car
+  { min: 40_000_000, label: '명품', img: '02' }, // → luxury
+  { min: 80_000_000, label: '사장님', img: '02' }, // → boss
+  { min: 150_000_000, label: '슈퍼카', img: '02' }, // → supercar
+  { min: 300_000_000, label: '건물주', img: '02' }, // → landlord
+  { min: 1_000_000_000, label: '펜트하우스', img: 'rich' }, // '한국 부자' 10억
+]
+export const tierOf = (asset: number) => Math.max(0, WEALTH_TIERS.findLastIndex((t) => asset >= t.min))
+// 게이지용 — 단계 안 선형 진행률(0~1, '₩ 남음' 문구와 맞고 하한 0인 단계도 다룸). 최고 단계는 next 없이 1
+export function tierProgress(asset: number) {
+  const i = tierOf(asset)
+  const cur = WEALTH_TIERS[i]
+  const next = WEALTH_TIERS[i + 1] as (typeof WEALTH_TIERS)[number] | undefined
+  return { i, cur, next, pct: next ? Math.min(1, Math.max(0, (asset - cur.min) / (next.min - cur.min))) : 1 }
+}
+
+// R14 홈 아바타 — 나이=프로필 연령대 시작 나이+시뮬 경과(30/60 경계), 부=WEALTH_TIERS 단계 그림
 // 성별 세트는 파일명 프리픽스(m_/f_) — 에셋이 아직 없으면 호출부 <img onError>가 공용 세트로 폴백
 const YEAR = 31_536_000
 const BAND_AGE: Record<string, number> = { '10대': 15, '20대': 25, '30대': 35, '40대': 45, '50대': 55, '60대+': 65 }
@@ -122,9 +145,7 @@ const GENDER_PREFIX: Record<string, string> = { 남성: 'm_', 여성: 'f_' }
 export function avatarSrc(totalAsset: number, simSec: number, ageBand?: string | null, gender?: string | null): string {
   const years = (BAND_AGE[ageBand ?? ''] ?? 25) + simSec / YEAR // 미설정·비로그인은 20대 취급
   const age = years < 30 ? 'child' : years < 60 ? 'young' : 'old'
-  const m = totalAsset / START_BALANCE
-  const wealth = totalAsset >= 1_000_000_000 ? 'rich' : m < 0.99 ? '00' : m < 1.6 ? '01' : '02'
-  return `/avatar/${GENDER_PREFIX[gender ?? ''] ?? ''}${age}_${wealth}.png`
+  return `/avatar/${GENDER_PREFIX[gender ?? ''] ?? ''}${age}_${WEALTH_TIERS[tierOf(totalAsset)].img}.png`
 }
 
 // 차트 경과시간(달력 기준, 초) 사람 표기 — "약 1년 3개월"·"약 3개월 12일"·"약 5일"·"약 6시간" (0 나머지 생략)
