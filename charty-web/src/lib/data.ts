@@ -115,17 +115,17 @@ export const SETS: Record<string, { label: string; vol: string | null; desc: str
 export type SetKey = keyof typeof SETS
 
 // 부(富) 단계 사다리 — 총자산(₩) 하한 오름차순, tierOf가 정렬에 기댄다. img = 아바타 파일 접미사
-// ponytail: 하한·라벨은 임시값. img가 기존 키(00/01/02)인 새 단계(→ 주석의 키)는 새 PNG가 오면 키만 교체 — 런타임 존재 검사 없음
+// ponytail: 하한·라벨은 임시값. 런타임 존재 검사 없음 — 단계 × 나이 파일이 다 있는지는 data.test.ts가 지킨다
 export const WEALTH_TIERS = [
-  { min: 0, label: '거지', img: '00' }, // → beggar
+  { min: 0, label: '거지', img: 'beggar' },
   { min: 3_000_000, label: '빈털터리', img: '00' },
   { min: 8_000_000, label: '개미', img: '01' }, // 시작 자산 1천만
   { min: 13_000_000, label: '목돈', img: '02' },
-  { min: 20_000_000, label: '첫 차', img: '02' }, // → car
-  { min: 40_000_000, label: '명품', img: '02' }, // → luxury
-  { min: 80_000_000, label: '사장님', img: '02' }, // → boss
-  { min: 150_000_000, label: '슈퍼카', img: '02' }, // → supercar
-  { min: 300_000_000, label: '건물주', img: '02' }, // → landlord
+  { min: 20_000_000, label: '첫 차', img: 'car' },
+  { min: 40_000_000, label: '명품', img: 'luxury' },
+  { min: 80_000_000, label: '사장님', img: 'boss' },
+  { min: 150_000_000, label: '슈퍼카', img: 'supercar' },
+  { min: 300_000_000, label: '건물주', img: 'landlord' },
   { min: 1_000_000_000, label: '펜트하우스', img: 'rich' }, // '한국 부자' 10억
 ]
 export const tierOf = (asset: number) => Math.max(0, WEALTH_TIERS.findLastIndex((t) => asset >= t.min))

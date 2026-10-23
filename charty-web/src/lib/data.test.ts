@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { SETS, START_BALANCE, WEALTH_TIERS, avatarSrc, fmtDur, normalizeCounts, resampleCandles, tierOf, tierProgress } from './data'
 import type { Candle } from '../types'
@@ -86,14 +87,18 @@ describe('tierProgress — 게이지', () => {
 
 describe('avatarSrc', () => {
   const Y = 31_536_000
-  it('부 경계 — 사다리 하한(800만·1,300만·10억), 새 단계는 그림이 올 때까지 기존 그림으로 대체', () => {
-    expect(avatarSrc(2_999_999, 0)).toBe('/avatar/child_00.png') // 거지
-    expect(avatarSrc(7_999_999, 0)).toBe('/avatar/child_00.png')
-    expect(avatarSrc(8_000_000, 0)).toBe('/avatar/child_01.png')
-    expect(avatarSrc(10_000_000, 0)).toBe('/avatar/child_01.png')
-    expect(avatarSrc(13_000_000, 0)).toBe('/avatar/child_02.png')
-    expect(avatarSrc(999_999_999, 0)).toBe('/avatar/child_02.png') // 첫 차~건물주
-    expect(avatarSrc(1_000_000_000, 0)).toBe('/avatar/child_rich.png')
+  it('부 경계 — 단계마다 제 그림 (사다리 하한마다 바뀜)', () => {
+    const cases: [number, string][] = [
+      [2_999_999, 'beggar'], [3_000_000, '00'], [7_999_999, '00'], [8_000_000, '01'], [10_000_000, '01'], [13_000_000, '02'],
+      [20_000_000, 'car'], [40_000_000, 'luxury'], [80_000_000, 'boss'], [150_000_000, 'supercar'],
+      [300_000_000, 'landlord'], [999_999_999, 'landlord'], [1_000_000_000, 'rich'],
+    ]
+    for (const [asset, key] of cases) expect(avatarSrc(asset, 0), String(asset)).toBe(`/avatar/child_${key}.png`)
+  })
+  it('모든 단계 × 나이의 그림이 public/avatar에 있다 — 런타임 존재 검사가 없어 하나라도 빠지면 깨진 이미지', () => {
+    for (const { img } of WEALTH_TIERS)
+      for (const age of ['child', 'young', 'old'])
+        expect(existsSync(new URL(`../../public/avatar/${age}_${img}.png`, import.meta.url)), `${age}_${img}`).toBe(true)
   })
   it('나이 = 연령대 시작 나이 + 시뮬 경과, 경계 30/60', () => {
     expect(avatarSrc(10_000_000, 0, '30대')).toBe('/avatar/young_01.png') // 33세 유저는 어른부터 시작
