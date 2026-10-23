@@ -62,13 +62,13 @@ src/types.ts    전 도메인 타입 150줄 — import 0, 순수 리프. "스키
 - **순수하지만 in-place 변형** — "호출측에서 structuredClone 후 넘길 것" 계약이 주석으로만 존재(타입 미표현). store의 5개 액션 모두 준수 중
 - SHORT 경로는 UI 진입 불가·구기록 재생용으로만 생존 (v1 마이그레이션이 잔여 세션 폐기)
 
-## 테스트 (vitest 125케이스 — src/lib + store)
+## 테스트 (vitest 126케이스 — src/lib + store)
 
 | 대상 | 케이스 | 비고 |
 |---|--:|---|
 | report | 21 | 에피소드·지표·잠금 게이트 |
 | engine | 14 | 체결·평단·갭·검증 + **상수 부호 방어** |
-| data / coach / fund | 17·9·9 | data에 부 단계 사다리(tierOf·tierProgress)·아바타 경계 포함. coach는 자기 소스 `?raw` 스캔으로 블라인드 금지어 검사 |
+| data / coach / fund | 18·9·9 | data에 부 단계 사다리(tierOf·tierProgress)·아바타 경계·단계×나이 그림 파일 존재 포함. coach는 자기 소스 `?raw` 스캔으로 블라인드 금지어 검사 |
 | speed | 30 | 익절 통과/정확 터치/갭, 손절 터치/갭, 같은 캔들 둘 다(손절 먼저·시가 우선), 선 없음, 숏 −1 상한, 수수료 왕복, 선 표기·설정 비교, 가중 출제·가까운 선, 출제 자르기 경계(데이터 로더 mock) |
 | sync | 11 | reconcile + 슬라이스 키 고정 + decideSync(LWW·시드 규칙·게스트 스탬프) |
 | store | 14 | wipeLocal(speedCfg 유지), playSpeed(정산·판의 손절 규칙·진행 세션·대사 중·NaN 거부), applySync(잔고 채택 규칙·늦은 기록·시계 차) |
@@ -94,7 +94,7 @@ pathname 끝슬래시 보정 1줄이 새어 있음(빌드 분기의 유일한 �
 
 | # | 부채 | 위험 | 상환 시점 제안 |
 |---|---|---|---|
-| ① | CI에 test/lint/typecheck 게이트 없음 | 125케이스가 있는데 자동 실행 0 — 회귀가 조용히 통과 | **즉시 가치.** daily.yml 옆 push 트리거 워크플로 하나 |
+| ① | CI에 test/lint/typecheck 게이트 없음 | 126케이스가 있는데 자동 실행 0 — 회귀가 조용히 통과 | **즉시 가치.** daily.yml 옆 push 트리거 워크플로 하나 |
 | ② | point-in-time 필터 3중 구현 (fund.ts·coach.ts·NewsPanel) | 미래 누출 방지 규칙이 "주석 합의"로 유지 — 한 곳만 `<=`로 바뀌면 조용히 깨짐 | 다음에 그 파일들 만질 때 헬퍼 1개로 통합 |
 | ③ | ~~LWW 비교·시드 정책이 shell.tsx(UI)에 있고 미테스트~~ → 2026-10-20 `decideSync`로 내려 테스트함 (부분 상환) | 남은 것: 계정 전환 와이프·게스트 스탬프 리셋은 부작용이 있어 shell에 남음 | 다음 동기화 작업 때 |
 | ④ | Welcome/AuthButtons Google OAuth 중복 (호출 2곳 + 로고 SVG 2벌) | 리다이렉트 정책 변경 시 한쪽 누락 | 다음 인증 작업 때 `lib/supabase.ts`로 승격 |
